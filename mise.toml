@@ -1,0 +1,52 @@
+[tools]
+go = "1.26.0"
+
+[env]
+BINARY = "vrpoker-stats"
+BUILD_TAGS = "wayland"
+CGO_ENABLED = "1"
+
+# ── Tasks ─────────────────────────────────────────────────────────────────────
+
+[tasks.build]
+description = "Build the binary (Wayland)"
+run = 'go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o "$BINARY" .'
+sources = ["**/*.go", "go.mod", "go.sum"]
+outputs = ["{{env.BINARY}}"]
+
+[tasks.build-debug]
+description = "Build with debug info (no stripping)"
+run = 'go build -tags "$BUILD_TAGS" -o "${BINARY}-debug" .'
+
+[tasks.run]
+description = "Build and run (Wayland)"
+depends = ["build"]
+run = './"$BINARY"'
+
+[tasks.test]
+description = "Run unit tests (excludes real-log integration test)"
+run = 'go test -v -run "Test[^R]" ./internal/...'
+
+[tasks.test-all]
+description = "Run all tests including real VRChat log integration test"
+run = "go test -v ./internal/..."
+
+[tasks.test-parser]
+description = "Run parser tests only"
+run = "go test -v ./internal/parser/..."
+
+[tasks.lint]
+description = "Run go vet"
+run = "go vet -tags \"$BUILD_TAGS\" ./..."
+
+[tasks.tidy]
+description = "Tidy go modules"
+run = "go mod tidy"
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = 'rm -f "$BINARY" "${BINARY}-debug"'
+
+[tasks.ci]
+description = "Run full CI pipeline locally (lint + test + build)"
+depends = ["lint", "test", "build"]

@@ -1,0 +1,26 @@
+# Build outputs
+vrpoker-stats
+vrpoker-stats-debug
+vrpoker-stats-x11
+*.exe
+
+# Go build cache
+/vendor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test output
+*.test
+coverage.out
+coverage.html
+
+# mise local overrides
+.mise.local.toml
