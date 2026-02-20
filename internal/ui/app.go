@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"sync"
@@ -12,21 +11,24 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/application"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/persistence"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/watcher"
 )
 
 // App is the main application controller
 type App struct {
-	fyneApp  fyne.App
-	win      fyne.Window
-	logPath  string
-	parser   *parser.Parser
-	calc     *stats.Calculator
-	watcher  *watcher.LogWatcher
-	mu       sync.Mutex
-	lastStats *stats.Stats
+	fyneApp       fyne.App
+	win           fyne.Window
+	logPath       string
+	service       *application.Service
+	watcher       *watcher.LogWatcher
+	mu            sync.Mutex
+	lastStats     *stats.Stats
+	lastHands     []*parser.Hand
+	lastLocalSeat int
 
 	// UI tabs content containers (for refresh)
 	overviewContent  *fyne.Container
@@ -49,8 +51,7 @@ func Run() {
 	appCtrl := &App{
 		fyneApp: a,
 		win:     win,
-		parser:  parser.NewParser(),
-		calc:    stats.NewCalculator(),
+		service: application.NewService(persistence.NewMemoryRepository()),
 	}
 
 	win.SetContent(appCtrl.buildUI())
@@ -113,15 +114,13 @@ func (a *App) changeLogFile(path string) {
 		a.watcher.Stop()
 		a.watcher = nil
 	}
-	// Reset parser
-	a.parser = parser.NewParser()
 	a.logPath = path
 	a.mu.Unlock()
 
 	a.doSetStatus(fmt.Sprintf("Loading: %s", shortPath(path)))
 
 	// Parse entire existing file first
-	if err := a.parseFullFile(path); err != nil {
+	if err := a.service.ChangeLogFile(path); err != nil {
 		a.doSetStatus(fmt.Sprintf("Error reading log: %v", err))
 		return
 	}
@@ -136,12 +135,10 @@ func (a *App) changeLogFile(path string) {
 	}
 
 	w.OnNewData = func(lines []string) {
-		a.mu.Lock()
-		p := a.parser
-		for _, line := range lines {
-			_ = p.ParseLine(line)
+		if err := a.service.ImportLines(lines); err != nil {
+			a.doSetStatus(fmt.Sprintf("Import error: %v", err))
+			return
 		}
-		a.mu.Unlock()
 		a.doUpdateStats()
 	}
 	w.OnError = func(err error) {
@@ -165,37 +162,18 @@ func (a *App) changeLogFile(path string) {
 	go a.statusLoop()
 }
 
-func (a *App) parseFullFile(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	a.mu.Lock()
-	p := a.parser
-	a.mu.Unlock()
-
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-	for scanner.Scan() {
-		_ = p.ParseLine(scanner.Text())
-	}
-	return scanner.Err()
-}
-
 // doUpdateStats recalculates stats and schedules a UI refresh on the main thread.
 func (a *App) doUpdateStats() {
-	a.mu.Lock()
-	p := a.parser
-	localSeat := p.GetLocalSeat()
-	hands := p.GetHands()
-	a.mu.Unlock()
-
-	s := a.calc.Calculate(hands, localSeat)
+	s, hands, localSeat, err := a.service.Snapshot()
+	if err != nil {
+		a.doSetStatus(fmt.Sprintf("Snapshot error: %v", err))
+		return
+	}
 
 	a.mu.Lock()
 	a.lastStats = s
+	a.lastHands = hands
+	a.lastLocalSeat = localSeat
 	a.mu.Unlock()
 
 	// All UI updates must happen on the Fyne main thread
@@ -213,9 +191,8 @@ func (a *App) doRefreshCurrentTab() {
 
 	a.mu.Lock()
 	s := a.lastStats
-	p := a.parser
-	localSeat := p.GetLocalSeat()
-	hands := p.GetHands()
+	localSeat := a.lastLocalSeat
+	hands := a.lastHands
 	a.mu.Unlock()
 
 	selected := a.tabs.SelectedIndex()
