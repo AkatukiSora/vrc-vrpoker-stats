@@ -45,10 +45,12 @@ func (lw *LogWatcher) Start() error {
 		return fmt.Errorf("watch directory %s: %w", dir, err)
 	}
 
-	// Read existing content first (from start)
-	lw.offset = 0
-	if err := lw.readNewContent(); err != nil {
-		_ = err // non-fatal
+	// Read existing content first only when no explicit offset is set.
+	// This keeps caller-specified offsets (e.g. EOF after initial import).
+	if lw.offset == 0 {
+		if err := lw.readNewContent(); err != nil {
+			_ = err // non-fatal
+		}
 	}
 
 	go lw.watchLoop()

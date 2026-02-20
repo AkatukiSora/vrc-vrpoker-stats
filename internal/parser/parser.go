@@ -44,7 +44,7 @@ type Parser struct {
 	currentStreet Street
 
 	// Per-street tracking
-	streetBetAmount int       // current highest bet in the street
+	streetBetAmount int         // current highest bet in the street
 	streetBets      map[int]int // total committed by each player this street
 	foldedThisHand  map[int]bool
 
@@ -439,12 +439,7 @@ func (p *Parser) finalizeCurrentHand() {
 	h.EndTime = p.lastTimestamp
 	h.IsComplete = len(p.pendingWinners) > 0 || len(h.CommunityCards) > 0
 
-	localSeat := h.LocalPlayerSeat
-	if localSeat >= 0 {
-		if _, ok := h.Players[localSeat]; ok {
-			p.result.Hands = append(p.result.Hands, h)
-		}
-	}
+	p.result.Hands = append(p.result.Hands, h)
 
 	p.currentHand = nil
 	p.pendingLocalCards = nil
@@ -453,13 +448,15 @@ func (p *Parser) finalizeCurrentHand() {
 // calculatePreflopStats computes VPIP/PFR/3Bet/FoldTo3Bet for all players.
 //
 // VRPoker log structure without SB/BB lines:
-//   First End Turn with amount > 0 is treated as the "open" (like BB).
-//   Subsequent raises are 2bet, 3bet, etc.
+//
+//	First End Turn with amount > 0 is treated as the "open" (like BB).
+//	Subsequent raises are 2bet, 3bet, etc.
 //
 // With SB/BB lines:
-//   BlindSB/BlindBB = level 1 (not voluntary)
-//   First raise/bet = 2bet (PFR)
-//   Second raise = 3bet
+//
+//	BlindSB/BlindBB = level 1 (not voluntary)
+//	First raise/bet = 2bet (PFR)
+//	Second raise = 3bet
 func (p *Parser) calculatePreflopStats(h *Hand) {
 	if len(p.pfActions) == 0 {
 		return
@@ -719,7 +716,7 @@ func sortInts(s []int) {
 	}
 }
 
-func (p *Parser) GetLocalSeat() int      { return p.result.LocalPlayerSeat }
+func (p *Parser) GetLocalSeat() int { return p.result.LocalPlayerSeat }
 func (p *Parser) GetHands() []*Hand {
 	h := make([]*Hand, len(p.result.Hands))
 	copy(h, p.result.Hands)
