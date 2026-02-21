@@ -43,6 +43,10 @@ run = "go vet -tags \"$BUILD_TAGS\" ./..."
 description = "Tidy go modules"
 run = "go mod tidy"
 
+[tasks.check-i18n]
+description = "Check UI strings use i18n wrappers"
+run = "go run ./tools/check_i18n"
+
 [tasks.clean]
 description = "Remove build artifacts"
 run = 'rm -f "$BINARY" "${BINARY}-debug"'

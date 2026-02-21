@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -22,7 +23,7 @@ func statCard(name, value string, valueColor color.Color, footnote string, showR
 	warnIcon := fyne.CanvasObject(layout.NewSpacer())
 	overlay := container.NewWithoutLayout()
 	if showReferenceWarn {
-		warnIcon, overlay = newHoverHint("参考値: サンプル不足のため、値が不安定・不正確な可能性があります。", HintSideLeft)
+		warnIcon, overlay = newHoverHint(lang.X("overview.low_sample_tip", "Low sample: values may be unstable or inaccurate."), HintSideLeft)
 	}
 
 	head := container.NewBorder(nil, nil, nil, warnIcon, container.NewCenter(nameLabel))
@@ -56,14 +57,14 @@ func statCard(name, value string, valueColor color.Color, footnote string, showR
 func NewOverviewTab(s *stats.Stats, visibility *MetricVisibilityState) fyne.CanvasObject {
 	// Empty state
 	if s == nil || s.TotalHands == 0 {
-		msg := widget.NewLabel("No hands recorded yet.\nStart playing in the VR Poker world!")
+		msg := widget.NewLabel(lang.X("overview.no_hands", "No hands recorded yet.\nStart playing in the VR Poker world!"))
 		msg.Alignment = fyne.TextAlignCenter
 		msg.Wrapping = fyne.TextWrapWord
 		return container.NewCenter(msg)
 	}
 
 	// Title
-	title := widget.NewLabel("Overall Statistics")
+	title := widget.NewLabel(lang.X("overview.title", "Overall Statistics"))
 	title.TextStyle = fyne.TextStyle{Bold: true}
 	title.Alignment = fyne.TextAlignCenter
 
@@ -81,7 +82,7 @@ func NewOverviewTab(s *stats.Stats, visibility *MetricVisibilityState) fyne.Canv
 	}
 
 	if len(cards) == 0 {
-		msg := widget.NewLabel("No metrics selected. Enable metrics in Settings.")
+		msg := widget.NewLabel(lang.X("overview.no_metrics", "No metrics selected. Enable metrics in Settings."))
 		msg.Alignment = fyne.TextAlignCenter
 		msg.Wrapping = fyne.TextWrapWord
 		return container.NewCenter(msg)
@@ -90,11 +91,11 @@ func NewOverviewTab(s *stats.Stats, visibility *MetricVisibilityState) fyne.Canv
 	grid := container.NewGridWithColumns(2, cards...)
 
 	insights := buildTrendInsights(s)
-	insightHeader := widget.NewLabel("Leak Insights")
+	insightHeader := widget.NewLabel(lang.X("overview.leak_insights", "Leak Insights"))
 	insightHeader.TextStyle = fyne.TextStyle{Bold: true}
 	insightRows := make([]fyne.CanvasObject, 0, len(insights))
 	if len(insights) == 0 {
-		insightRows = append(insightRows, widget.NewLabel("Not enough reliable samples yet for trend diagnostics."))
+		insightRows = append(insightRows, widget.NewLabel(lang.X("overview.no_samples", "Not enough reliable samples yet for trend diagnostics.")))
 	} else {
 		for _, in := range insights {
 			prefix := "[info]"

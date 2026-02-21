@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -101,19 +102,19 @@ func positionColumnWidth(metric MetricDefinition) float32 {
 // NewPositionStatsTab returns the "Position Stats" tab canvas object.
 func NewPositionStatsTab(s *stats.Stats, visibility *MetricVisibilityState) fyne.CanvasObject {
 	if s == nil || len(s.ByPosition) == 0 {
-		msg := widget.NewLabel("No position data yet.")
+		msg := widget.NewLabel(lang.X("position_stats.no_data", "No position data yet."))
 		msg.Alignment = fyne.TextAlignCenter
 		return container.NewCenter(msg)
 	}
 
 	metricDefs := metricsForPosition(visibility)
 	if len(metricDefs) == 0 {
-		msg := widget.NewLabel("No metrics selected. Enable metrics in Settings.")
+		msg := widget.NewLabel(lang.X("position_stats.no_metrics", "No metrics selected. Enable metrics in Settings."))
 		msg.Alignment = fyne.TextAlignCenter
 		return container.NewCenter(msg)
 	}
 
-	headers := []positionCellData{{Main: "Position", IsHead: true}}
+	headers := []positionCellData{{Main: lang.X("position_stats.position_header", "Position"), IsHead: true}}
 	for _, metric := range metricDefs {
 		headers = append(headers, positionCellData{Main: metric.Label, IsHead: true})
 	}

@@ -159,3 +159,25 @@ If these files appear later, treat them as higher-priority local policy.
 - Avoid mixing generated/local runtime artifacts with source changes.
 - Do not commit local logs, screenshots, or SQLite runtime DB files.
 - Use intent-focused messages (why-focused, not raw file lists).
+
+## Subagent Usage
+
+- Proactively use subagents (Task tool) for large or parallelizable tasks.
+- Use the `general` subagent type for code writing and multi-step execution tasks.
+- Use the `explore` subagent type for codebase research (file searches, keyword lookups, structural questions).
+- When tasks are independent of each other, launch multiple subagents in parallel in a single message.
+- Delegate focused, self-contained work to subagents (e.g., "edit these 3 files", "run these checks and fix errors").
+
+## Internationalisation (i18n)
+
+- All user-visible strings in `internal/ui/` **must** be wrapped with `fyne.io/fyne/v2/lang` functions.
+- Prefer `lang.X(key, fallback)` as the primary API. Use `lang.L(fallback)` only for strings with no disambiguation need.
+- For strings with runtime variables, use Go template syntax: `lang.X("key", "Hello {{.Name}}", map[string]any{"Name": name})`.
+- Translation files live in `internal/ui/translations/en.json` (English, fallback) and `internal/ui/translations/ja.json` (Japanese).
+- When adding a new UI string: (1) wrap it with `lang.X`, (2) add the key to both `en.json` and `ja.json`.
+- Metric labels (e.g., "VPIP", "PFR", "3Bet") are intentionally left untranslated as international poker terminology.
+- The pre-commit hook `check-i18n` and CI step enforce that no bare string literals appear in UI display APIs.
+- Allow exceptions with `//i18n:ignore <reason>`.
+- `//i18n:ignore` applies to the UI string on the same line or the immediately preceding line.
+- `//i18n:ignore` without `<reason>` is treated as a warning by the checker.
+- Do not use an allow list for i18n checker exceptions.

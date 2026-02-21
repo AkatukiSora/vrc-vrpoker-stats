@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/application"
@@ -48,7 +49,7 @@ func Run() {
 	a := app.New()
 	a.Settings().SetTheme(newPokerTheme())
 
-	win := a.NewWindow("VRC VRPoker Stats")
+	win := a.NewWindow(lang.X("app.window.title", "VRC VRPoker Stats"))
 	win.Resize(fyne.NewSize(1100, 700))
 	win.SetMaster()
 
@@ -73,7 +74,7 @@ func Run() {
 
 func (a *App) buildUI() fyne.CanvasObject {
 	// Status bar
-	a.statusBar = widget.NewLabel("Initializing...")
+	a.statusBar = widget.NewLabel(lang.X("app.status.initializing", "Initializing..."))
 
 	// Tab content containers
 	a.overviewContent = container.NewMax()
@@ -82,11 +83,11 @@ func (a *App) buildUI() fyne.CanvasObject {
 	a.handRangeContent = container.NewMax()
 
 	a.tabs = container.NewAppTabs(
-		container.NewTabItem("Overview", a.overviewContent),
-		container.NewTabItem("Position Stats", a.posStatsContent),
-		container.NewTabItem("Hand Range", a.handRangeContent),
-		container.NewTabItem("Hand History", a.handHistContent),
-		container.NewTabItem("Settings", NewSettingsTab(
+		container.NewTabItem(lang.X("app.tab.overview", "Overview"), a.overviewContent),
+		container.NewTabItem(lang.X("app.tab.position_stats", "Position Stats"), a.posStatsContent),
+		container.NewTabItem(lang.X("app.tab.hand_range", "Hand Range"), a.handRangeContent),
+		container.NewTabItem(lang.X("app.tab.hand_history", "Hand History"), a.handHistContent),
+		container.NewTabItem(lang.X("app.tab.settings", "Settings"), NewSettingsTab(
 			"",
 			a.win,
 			func(path string) { go a.changeLogFile(path) },
@@ -113,11 +114,11 @@ func (a *App) buildUI() fyne.CanvasObject {
 }
 
 func (a *App) initLogFile() {
-	a.doSetStatus("Importing VRChat logs...")
+	a.doSetStatus(lang.X("app.status.importing", "Importing VRChat logs..."))
 
 	logPath, err := a.service.BootstrapImportAllLogs()
 	if err != nil {
-		a.doSetStatus(fmt.Sprintf("No log file found: %v — configure in Settings.", err))
+		a.doSetStatus(lang.X("app.error.no_log_file", "No log file found: {{.Error}} — configure in Settings.", map[string]any{"Error": err}))
 		return
 	}
 
@@ -135,32 +136,32 @@ func (a *App) changeLogFile(path string) {
 	a.logPath = path
 	a.mu.Unlock()
 
-	a.doSetStatus(fmt.Sprintf("Loading: %s", shortPath(path)))
+	a.doSetStatus(lang.X("app.status.loading", "Loading: {{.Path}}", map[string]any{"Path": shortPath(path)}))
 
 	// Parse entire existing file first
 	if err := a.service.ChangeLogFile(path); err != nil {
-		a.doSetStatus(fmt.Sprintf("Error reading log: %v", err))
+		a.doSetStatus(lang.X("app.error.read_log", "Error reading log: {{.Error}}", map[string]any{"Error": err}))
 		return
 	}
 	a.doUpdateStats()
-	a.doSetStatus(fmt.Sprintf("Loaded: %s — watching for changes…", shortPath(path)))
+	a.doSetStatus(lang.X("app.status.loaded", "Loaded: {{.Path}} — watching for changes…", map[string]any{"Path": shortPath(path)}))
 
 	// Start tail watcher from current end-of-file
 	w, err := watcher.NewLogWatcher(path)
 	if err != nil {
-		a.doSetStatus(fmt.Sprintf("Watcher error: %v", err))
+		a.doSetStatus(lang.X("app.error.watcher", "Watcher error: {{.Error}}", map[string]any{"Error": err}))
 		return
 	}
 
 	w.OnNewData = func(lines []string, startOffset int64, endOffset int64) {
 		if err := a.service.ImportLines(lines, startOffset, endOffset); err != nil {
-			a.doSetStatus(fmt.Sprintf("Import error: %v", err))
+			a.doSetStatus(lang.X("app.error.import", "Import error: {{.Error}}", map[string]any{"Error": err}))
 			return
 		}
 		a.doUpdateStats()
 	}
 	w.OnError = func(err error) {
-		a.doSetStatus(fmt.Sprintf("Watcher error: %v", err))
+		a.doSetStatus(lang.X("app.error.watcher", "Watcher error: {{.Error}}", map[string]any{"Error": err}))
 	}
 
 	// Start from end of file (we already parsed the full history above)
@@ -169,7 +170,7 @@ func (a *App) changeLogFile(path string) {
 	}
 
 	if err := w.Start(); err != nil {
-		a.doSetStatus(fmt.Sprintf("Failed to start watcher: %v", err))
+		a.doSetStatus(lang.X("app.error.watcher_start", "Failed to start watcher: {{.Error}}", map[string]any{"Error": err}))
 		return
 	}
 
@@ -184,7 +185,7 @@ func (a *App) changeLogFile(path string) {
 func (a *App) doUpdateStats() {
 	s, hands, localSeat, err := a.service.Snapshot()
 	if err != nil {
-		a.doSetStatus(fmt.Sprintf("Snapshot error: %v", err))
+		a.doSetStatus(lang.X("app.error.snapshot", "Snapshot error: {{.Error}}", map[string]any{"Error": err}))
 		return
 	}
 
@@ -254,10 +255,7 @@ func (a *App) statusLoop() {
 		a.mu.Unlock()
 
 		if s != nil {
-			a.doSetStatus(fmt.Sprintf(
-				"Watching: %s | Hands: %d | VPIP: %.1f%% | PFR: %.1f%%",
-				shortPath(path), s.TotalHands, s.VPIPRate(), s.PFRRate(),
-			))
+			a.doSetStatus(lang.X("app.status.watching", "Watching: {{.Path}} | Hands: {{.Hands}} | VPIP: {{.VPIP}}% | PFR: {{.PFR}}%", map[string]any{"Path": shortPath(path), "Hands": s.TotalHands, "VPIP": fmt.Sprintf("%.1f", s.VPIPRate()), "PFR": fmt.Sprintf("%.1f", s.PFRRate())}))
 		}
 	}
 }

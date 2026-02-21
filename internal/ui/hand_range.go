@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -285,13 +286,13 @@ func buildActionSummaryRows(counts [stats.RangeActionBucketCount]int, total int)
 			widget.NewLabel(fmt.Sprintf("(%d)", counts[av.Bucket])),
 		))
 	}
-	rows = append(rows, widget.NewLabel(fmt.Sprintf("Samples: %d", total)))
+	rows = append(rows, widget.NewLabel(lang.X("hand_range.samples", "Samples: {{.N}}", map[string]any{"N": total})))
 	return container.NewVBox(rows...)
 }
 
 func buildClassSummaryByMap(byClass map[string]*stats.HandClassStats) fyne.CanvasObject {
 	if len(byClass) == 0 {
-		return widget.NewLabel("No class-level data yet.")
+		return widget.NewLabel(lang.X("hand_range.no_class_data", "No class-level data yet."))
 	}
 
 	keys := make([]string, 0, len(byClass))
@@ -321,7 +322,7 @@ func buildClassSummaryByMap(byClass map[string]*stats.HandClassStats) fyne.Canva
 	}
 
 	if len(rows) == 0 {
-		return widget.NewLabel("No class-level data yet.")
+		return widget.NewLabel(lang.X("hand_range.no_class_data", "No class-level data yet."))
 	}
 
 	return container.NewVBox(rows...)
@@ -330,11 +331,11 @@ func buildClassSummaryByMap(byClass map[string]*stats.HandClassStats) fyne.Canva
 func buildRightPanel(table *stats.HandRangeTable, posIdx int, selected *stats.HandRangeCell) fyne.CanvasObject {
 	if selected != nil {
 		counts, total := actionCountsForCell(selected, posIdx)
-		title := widget.NewLabelWithStyle("Selected Combo Action Frequency", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		title := widget.NewLabelWithStyle(lang.X("hand_range.combo_action_title", "Selected Combo Action Frequency"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 		comboName := widget.NewLabelWithStyle(comboDisplayName(selected), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 		if total == 0 {
-			noData := widget.NewLabel("No records for this combo in the selected position filter.")
+			noData := widget.NewLabel(lang.X("hand_range.no_combo_records", "No records for this combo in the selected position filter."))
 			noData.Wrapping = fyne.TextWrapWord
 			return container.NewVBox(
 				title,
@@ -347,7 +348,7 @@ func buildRightPanel(table *stats.HandRangeTable, posIdx int, selected *stats.Ha
 		comboBox := buildActionSummaryRows(counts, total)
 		comboSection := container.NewVBox(title, comboName, comboBox)
 		classAcc := widget.NewAccordion(
-			widget.NewAccordionItem("Hand Class Action Frequency (Selected Combo, All Streets)", buildClassSummaryByMap(selected.ByHandClass)),
+			widget.NewAccordionItem(lang.X("hand_range.class_action_selected", "Hand Class Action Frequency (Selected Combo, All Streets)"), buildClassSummaryByMap(selected.ByHandClass)),
 		)
 		return container.NewVBox(
 			comboSection,
@@ -357,14 +358,14 @@ func buildRightPanel(table *stats.HandRangeTable, posIdx int, selected *stats.Ha
 	}
 
 	allCounts, allTotal := aggregateActions(table, posIdx)
-	globalTitle := widget.NewLabelWithStyle("Preflop Range Action Frequency", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	globalTitle := widget.NewLabelWithStyle(lang.X("hand_range.preflop_title", "Preflop Range Action Frequency"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	globalBox := buildActionSummaryRows(allCounts, allTotal)
-	comboTitle := widget.NewLabelWithStyle("Selected Combo", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	comboName := widget.NewLabel("None")
-	comboStats := widget.NewLabel("Click a cell in the 13x13 grid.")
+	comboTitle := widget.NewLabelWithStyle(lang.X("hand_range.selected_combo", "Selected Combo"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	comboName := widget.NewLabel(lang.X("hand_range.none", "None"))
+	comboStats := widget.NewLabel(lang.X("hand_range.click_grid", "Click a cell in the 13x13 grid."))
 
 	classAcc := widget.NewAccordion(
-		widget.NewAccordionItem("Hand Class Action Frequency (All Streets)", buildClassSummaryByMap(table.ByHandClass)),
+		widget.NewAccordionItem(lang.X("hand_range.class_all_streets", "Hand Class Action Frequency (All Streets)"), buildClassSummaryByMap(table.ByHandClass)),
 	)
 
 	return container.NewVBox(
@@ -392,7 +393,7 @@ func buildActionLegend() fyne.CanvasObject {
 // NewHandRangeTab renders a GTO-style mixed-strategy range view.
 func NewHandRangeTab(s *stats.Stats, _ fyne.Window, state *HandRangeViewState) fyne.CanvasObject {
 	if s == nil || s.HandRange == nil {
-		msg := widget.NewLabel("No hand data yet.")
+		msg := widget.NewLabel(lang.X("hand_range.no_hand_data", "No hand data yet."))
 		msg.Alignment = fyne.TextAlignCenter
 		return container.NewCenter(msg)
 	}
@@ -413,7 +414,7 @@ func NewHandRangeTab(s *stats.Stats, _ fyne.Window, state *HandRangeViewState) f
 
 	leftWrap := container.NewMax()
 	rightWrap := container.NewMax()
-	clearSelectionButton := widget.NewButton("Show All Range", nil)
+	clearSelectionButton := widget.NewButton(lang.X("hand_range.show_all", "Show All Range"), nil)
 
 	var rebuild func()
 	rebuild = func() {
@@ -466,13 +467,13 @@ func NewHandRangeTab(s *stats.Stats, _ fyne.Window, state *HandRangeViewState) f
 
 	legend := buildActionLegend()
 	positionRow := container.NewHBox(
-		container.NewCenter(widget.NewLabel("Position:")),
+		container.NewCenter(widget.NewLabel(lang.X("hand_range.position_label", "Position:"))),
 		container.NewCenter(posSelect),
 	)
 	topBarContent := container.NewHBox(
 		positionRow,
 		widget.NewSeparator(),
-		widget.NewLabelWithStyle("Action Palette", fyne.TextAlignLeading, fyne.TextStyle{Italic: true}),
+		widget.NewLabelWithStyle(lang.X("hand_range.action_palette", "Action Palette"), fyne.TextAlignLeading, fyne.TextStyle{Italic: true}),
 		legend,
 		widget.NewSeparator(),
 		container.NewCenter(clearSelectionButton),

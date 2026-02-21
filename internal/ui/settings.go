@@ -4,6 +4,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -38,15 +39,15 @@ func NewSettingsTab(
 }
 
 func (st *SettingsTab) build() fyne.CanvasObject {
-	title := widget.NewLabelWithStyle("Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	title := widget.NewLabelWithStyle(lang.X("settings.title", "Settings"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	// Log file path
-	pathLabel := widget.NewLabel("VRChat Log File Path:")
+	pathLabel := widget.NewLabel(lang.X("settings.log_path_label", "VRChat Log File Path:"))
 	pathEntry := widget.NewEntry()
-	pathEntry.SetPlaceHolder("Path to VRChat output_log_*.txt")
+	pathEntry.SetPlaceHolder(lang.X("settings.log_path_placeholder", "Path to VRChat output_log_*.txt"))
 	pathEntry.SetText(st.LogPath)
 
-	browseBtn := widget.NewButton("Browse...", func() {
+	browseBtn := widget.NewButton(lang.X("settings.browse", "Browse..."), func() {
 		dialog.ShowFileOpen(func(f fyne.URIReadCloser, err error) {
 			if err != nil || f == nil {
 				return
@@ -61,7 +62,7 @@ func (st *SettingsTab) build() fyne.CanvasObject {
 		}, st.win)
 	})
 
-	applyBtn := widget.NewButton("Apply", func() {
+	applyBtn := widget.NewButton(lang.X("settings.apply", "Apply"), func() {
 		path := pathEntry.Text
 		st.LogPath = path
 		if st.OnPathChange != nil {
@@ -72,8 +73,8 @@ func (st *SettingsTab) build() fyne.CanvasObject {
 
 	pathRow := container.NewBorder(nil, nil, nil, container.NewHBox(browseBtn, applyBtn), pathEntry)
 
-	metricsTitle := widget.NewLabelWithStyle("Metrics Visibility", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	metricsHint := widget.NewLabel("Choose which metrics are shown in Overview and Position Stats.")
+	metricsTitle := widget.NewLabelWithStyle(lang.X("settings.metrics_title", "Metrics Visibility"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	metricsHint := widget.NewLabel(lang.X("settings.metrics_hint", "Choose which metrics are shown in Overview and Position Stats."))
 	metricsHint.Wrapping = fyne.TextWrapWord
 
 	presets := metricPresets()
@@ -109,7 +110,7 @@ func (st *SettingsTab) build() fyne.CanvasObject {
 		check.SetChecked(st.MetricState.IsVisible(metric.ID))
 		checks[metric.ID] = check
 
-		helpBtn := widget.NewButton("?", func() {
+		helpBtn := widget.NewButton(lang.X("settings.help_button", "?"), func() {
 			dialog.ShowInformation(metric.Label, metric.Help, st.win)
 		})
 
@@ -120,28 +121,14 @@ func (st *SettingsTab) build() fyne.CanvasObject {
 
 	// Info box
 	infoLabel := widget.NewLabel(
-		"The application monitors your VRChat log file in real-time.\n" +
-			"Log files are typically found at:\n\n" +
-			"  Linux (Steam Proton):\n" +
-			"  ~/.local/share/Steam/steamapps/compatdata/438100/pfx/\n" +
-			"  drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat/\n\n" +
-			"  Windows:\n" +
-			"  %APPDATA%\\..\\LocalLow\\VRChat\\VRChat\\\n\n" +
-			"Statistics are calculated for VR Poker world sessions only.\n" +
-			"Historical logs (from before the app was started) are also analyzed.",
+		lang.X("settings.info_text", "The application monitors your VRChat log file in real-time.\nLog files are typically found at:\n\n  Linux (Steam Proton):\n  ~/.local/share/Steam/steamapps/compatdata/438100/pfx/\n  drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat/\n\n  Windows:\n  %APPDATA%\\..\\LocalLow\\VRChat\\VRChat\\\n\nStatistics are calculated for VR Poker world sessions only.\nHistorical logs (from before the app was started) are also analyzed."),
 	)
 	infoLabel.Wrapping = fyne.TextWrapBreak
 
 	// About section
-	aboutTitle := widget.NewLabelWithStyle("About", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	aboutTitle := widget.NewLabelWithStyle(lang.X("settings.about.title", "About"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	aboutText := widget.NewLabel(
-		"VRC VRPoker Stats v1.0\n" +
-			"Tracks your poker statistics in the VRChat VR Poker world.\n\n" +
-			"Includes configurable metric visibility presets and per-metric help.\n" +
-			"Use Settings to tailor the dashboard for your study goal.\n\n" +
-			"Other features:\n" +
-			"  • Hand Range Analysis (13x13 grid)\n" +
-			"  • Position-based statistics",
+		lang.X("settings.about.text", "VRC VRPoker Stats v1.0\nTracks your poker statistics in the VRChat VR Poker world.\n\nIncludes configurable metric visibility presets and per-metric help.\nUse Settings to tailor the dashboard for your study goal.\n\nOther features:\n  • Hand Range Analysis (13x13 grid)\n  • Position-based statistics"),
 	)
 	aboutText.Wrapping = fyne.TextWrapBreak
 

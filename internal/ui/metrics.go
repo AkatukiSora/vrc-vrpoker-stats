@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
@@ -112,9 +113,9 @@ func metricFootnoteText(opportunities, minSamples int) string {
 		return ""
 	}
 	if minSamples > 0 && opportunities < minSamples {
-		return fmt.Sprintf("参考値 n=%d", opportunities)
+		return lang.X("metric.footnote.low_sample", "Ref n={{.N}}", map[string]any{"N": opportunities})
 	}
-	return fmt.Sprintf("n=%d", opportunities)
+	return lang.X("metric.footnote.normal", "n={{.N}}", map[string]any{"N": opportunities})
 }
 
 func metricPresets() []MetricPreset {
@@ -136,10 +137,10 @@ func metricPresets() []MetricPreset {
 		all[m.ID] = struct{}{}
 	}
 	return []MetricPreset{
-		{Name: "Beginner", ButtonText: "Beginner", MetricIDs: beginner},
-		{Name: "Advanced", ButtonText: "Advanced", MetricIDs: advanced},
-		{Name: "Leak Focus", ButtonText: "Leak Focus", MetricIDs: leak},
-		{Name: "All", ButtonText: "All", MetricIDs: all},
+		{Name: "Beginner", ButtonText: lang.X("preset.beginner", "Beginner"), MetricIDs: beginner},
+		{Name: "Advanced", ButtonText: lang.X("preset.advanced", "Advanced"), MetricIDs: advanced},
+		{Name: "Leak Focus", ButtonText: lang.X("preset.leak_focus", "Leak Focus"), MetricIDs: leak},
+		{Name: "All", ButtonText: lang.X("preset.all", "All"), MetricIDs: all},
 	}
 }
 
@@ -215,29 +216,29 @@ func buildTrendInsights(s *stats.Stats) []trendInsight {
 	pfr, okP := s.Metric(stats.MetricPFR)
 	if okV && okP && vpip.Opportunity >= 200 {
 		if vpip.Rate-pfr.Rate >= 12 {
-			out = append(out, trendInsight{Level: "warn", Text: "VPIP-PFR gap is large. You may be entering pots passively too often."})
+			out = append(out, trendInsight{Level: "warn", Text: lang.X("insight.vpip_pfr_gap", "VPIP-PFR gap is large. You may be entering pots passively too often.")})
 		}
 	}
 	foldSteal, okFS := s.Metric(stats.MetricFoldToSteal)
 	if okFS && foldSteal.Opportunity >= 50 && foldSteal.Rate >= 70 {
-		out = append(out, trendInsight{Level: "action", Text: "Fold to Steal is high. Review blind defense ranges and 3-bet/call mixes."})
+		out = append(out, trendInsight{Level: "action", Text: lang.X("insight.fold_to_steal", "Fold to Steal is high. Review blind defense ranges and 3-bet/call mixes.")})
 	}
 	flopCbet, okFC := s.Metric(stats.MetricFlopCBet)
 	turnCbet, okTC := s.Metric(stats.MetricTurnCBet)
 	wwsf, okWW := s.Metric(stats.MetricWWSF)
 	if okFC && okTC && okWW && flopCbet.Opportunity >= 50 && turnCbet.Opportunity >= 50 {
 		if flopCbet.Rate >= 65 && turnCbet.Rate <= 35 && wwsf.Rate < 42 {
-			out = append(out, trendInsight{Level: "warn", Text: "High flop c-bet but low turn follow-through. You may be over-cbetting flop then giving up."})
+			out = append(out, trendInsight{Level: "warn", Text: lang.X("insight.over_cbet", "High flop c-bet but low turn follow-through. You may be over-cbetting flop then giving up.")})
 		}
 	}
 	wtsd, okWT := s.Metric(stats.MetricWTSD)
 	wsd, okWSD := s.Metric(stats.MetricWSD)
 	if okWT && okWSD && wtsd.Opportunity >= 50 && wsd.Opportunity >= 50 {
 		if wtsd.Rate >= 33 && wsd.Rate <= 45 {
-			out = append(out, trendInsight{Level: "action", Text: "High WTSD with low W$SD suggests thin calls. Tighten showdown-bound bluff-catching."})
+			out = append(out, trendInsight{Level: "action", Text: lang.X("insight.thin_calls", "High WTSD with low W$SD suggests thin calls. Tighten showdown-bound bluff-catching.")})
 		}
 		if wtsd.Rate <= 20 && wwsf.Rate < 42 {
-			out = append(out, trendInsight{Level: "info", Text: "Low WTSD and low WWSF can indicate over-folding on later streets."})
+			out = append(out, trendInsight{Level: "info", Text: lang.X("insight.over_folding", "Low WTSD and low WWSF can indicate over-folding on later streets.")})
 		}
 	}
 	return out
@@ -247,7 +248,7 @@ var metricRegistry = []MetricDefinition{
 	{
 		ID:             "hands",
 		Label:          "Hands",
-		Help:           "Total complete hands included in current stats scope.",
+		Help:           lang.X("metric.hands.help", "Total complete hands included in current stats scope."),
 		MinSamples:     200,
 		ShowInOverview: true,
 		ShowInPosition: true,
@@ -267,7 +268,7 @@ var metricRegistry = []MetricDefinition{
 	{
 		ID:             "winRate",
 		Label:          "Win Rate",
-		Help:           "Won hands / total hands.",
+		Help:           lang.X("metric.win_rate.help", "Won hands / total hands."),
 		MinSamples:     200,
 		ShowInOverview: true,
 		ShowInPosition: true,
@@ -289,7 +290,7 @@ var metricRegistry = []MetricDefinition{
 	{
 		ID:             "profit",
 		Label:          "Total Profit",
-		Help:           "Total chips won minus invested chips.",
+		Help:           lang.X("metric.profit.help", "Total chips won minus invested chips."),
 		MinSamples:     200,
 		ShowInOverview: true,
 		ShowInPosition: true,
@@ -366,29 +367,29 @@ func vRateOrZero(s *stats.Stats, id stats.MetricID) float64 {
 }
 
 func init() {
-	addStatsMetricDefinition(stats.MetricVPIP, "VPIP", "Voluntarily Put Money In Pot. Preflop participation frequency.", true)
-	addStatsMetricDefinition(stats.MetricPFR, "PFR", "Preflop raise frequency.", true)
-	addStatsMetricDefinition(stats.MetricGap, "VPIP-PFR Gap", "VPIP minus PFR. Larger gap implies more passive preflop entries.", false)
-	addStatsMetricDefinition(stats.MetricRFI, "RFI", "Raise First In frequency.", false)
-	addStatsMetricDefinition(stats.MetricColdCall, "Cold Call", "Call preflop after someone opened while you were not yet in the pot.", false)
-	addStatsMetricDefinition(stats.MetricThreeBet, "3Bet", "3-bet frequency when a 3-bet opportunity is present.", true)
-	addStatsMetricDefinition(stats.MetricFoldToThreeBet, "Fold to 3Bet", "Fold frequency when facing a 3-bet after opening.", true)
-	addStatsMetricDefinition(stats.MetricSteal, "Steal Attempt", "Open-raise attempt from steal positions when folded to you.", false)
-	addStatsMetricDefinition(stats.MetricFoldToSteal, "Fold to Steal", "Fold frequency in blinds versus steal attempts.", false)
-	addStatsMetricDefinition(stats.MetricFlopCBet, "Flop CBet", "Continuation bet frequency on flop as preflop aggressor.", false)
-	addStatsMetricDefinition(stats.MetricTurnCBet, "Turn CBet", "Continuation bet frequency on turn.", false)
-	addStatsMetricDefinition(stats.MetricRiverCBet, "River CBet", "Continuation bet frequency on river.", false)
-	addStatsMetricDefinition(stats.MetricFoldToFlopCBet, "Fold to Flop CBet", "Fold frequency when facing flop c-bet.", false)
-	addStatsMetricDefinition(stats.MetricFoldToTurnCBet, "Fold to Turn CBet", "Fold frequency when facing turn c-bet.", false)
-	addStatsMetricDefinition(stats.MetricFoldToRiverCBet, "Fold to River CBet", "Fold frequency when facing river c-bet.", false)
-	addStatsMetricDefinition(stats.MetricWTSD, "WTSD", "Went to showdown after seeing flop.", false)
-	addStatsMetricDefinition(stats.MetricWSD, "W$SD", "Won money at showdown.", true)
-	addStatsMetricDefinition(stats.MetricWWSF, "WWSF", "Won when saw flop.", false)
-	addStatsMetricDefinition(stats.MetricAFq, "AFq", "Aggression frequency: (bet+raise)/(actions postflop).", false)
-	addStatsMetricDefinition(stats.MetricAF, "AF", "Aggression factor: (bet+raise)/call.", false)
-	addStatsMetricDefinition(stats.MetricCheckRaise, "Check-Raise", "Check-raise frequency postflop.", false)
-	addStatsMetricDefinition(stats.MetricDelayedCBet, "Delayed CBet", "Delayed continuation bet frequency (check flop, bet turn).", false)
-	addStatsMetricDefinition(stats.MetricWonWithoutSD, "Won without SD", "Won hand without reaching showdown.", false)
-	addStatsMetricDefinition(stats.MetricWonAtSD, "Won at SD", "Won hand at showdown.", false)
-	addStatsMetricDefinition(stats.MetricBBPer100, "bb/100", "Net big blinds won per 100 hands.", false)
+	addStatsMetricDefinition(stats.MetricVPIP, "VPIP", lang.X("metric.vpip.help", "Voluntarily Put Money In Pot. Preflop participation frequency."), true)
+	addStatsMetricDefinition(stats.MetricPFR, "PFR", lang.X("metric.pfr.help", "Preflop raise frequency."), true)
+	addStatsMetricDefinition(stats.MetricGap, "VPIP-PFR Gap", lang.X("metric.gap.help", "VPIP minus PFR. Larger gap implies more passive preflop entries."), false)
+	addStatsMetricDefinition(stats.MetricRFI, "RFI", lang.X("metric.rfi.help", "Raise First In frequency."), false)
+	addStatsMetricDefinition(stats.MetricColdCall, "Cold Call", lang.X("metric.cold_call.help", "Call preflop after someone opened while you were not yet in the pot."), false)
+	addStatsMetricDefinition(stats.MetricThreeBet, "3Bet", lang.X("metric.three_bet.help", "3-bet frequency when a 3-bet opportunity is present."), true)
+	addStatsMetricDefinition(stats.MetricFoldToThreeBet, "Fold to 3Bet", lang.X("metric.fold_to_three_bet.help", "Fold frequency when facing a 3-bet after opening."), true)
+	addStatsMetricDefinition(stats.MetricSteal, "Steal Attempt", lang.X("metric.steal.help", "Open-raise attempt from steal positions when folded to you."), false)
+	addStatsMetricDefinition(stats.MetricFoldToSteal, "Fold to Steal", lang.X("metric.fold_to_steal.help", "Fold frequency in blinds versus steal attempts."), false)
+	addStatsMetricDefinition(stats.MetricFlopCBet, "Flop CBet", lang.X("metric.flop_cbet.help", "Continuation bet frequency on flop as preflop aggressor."), false)
+	addStatsMetricDefinition(stats.MetricTurnCBet, "Turn CBet", lang.X("metric.turn_cbet.help", "Continuation bet frequency on turn."), false)
+	addStatsMetricDefinition(stats.MetricRiverCBet, "River CBet", lang.X("metric.river_cbet.help", "Continuation bet frequency on river."), false)
+	addStatsMetricDefinition(stats.MetricFoldToFlopCBet, "Fold to Flop CBet", lang.X("metric.fold_to_flop_cbet.help", "Fold frequency when facing flop c-bet."), false)
+	addStatsMetricDefinition(stats.MetricFoldToTurnCBet, "Fold to Turn CBet", lang.X("metric.fold_to_turn_cbet.help", "Fold frequency when facing turn c-bet."), false)
+	addStatsMetricDefinition(stats.MetricFoldToRiverCBet, "Fold to River CBet", lang.X("metric.fold_to_river_cbet.help", "Fold frequency when facing river c-bet."), false)
+	addStatsMetricDefinition(stats.MetricWTSD, "WTSD", lang.X("metric.wtsd.help", "Went to showdown after seeing flop."), false)
+	addStatsMetricDefinition(stats.MetricWSD, "W$SD", lang.X("metric.w_sd.help", "Won money at showdown."), true)
+	addStatsMetricDefinition(stats.MetricWWSF, "WWSF", lang.X("metric.wwsf.help", "Won when saw flop."), false)
+	addStatsMetricDefinition(stats.MetricAFq, "AFq", lang.X("metric.afq.help", "Aggression frequency: (bet+raise)/(actions postflop)."), false)
+	addStatsMetricDefinition(stats.MetricAF, "AF", lang.X("metric.af.help", "Aggression factor: (bet+raise)/call."), false)
+	addStatsMetricDefinition(stats.MetricCheckRaise, "Check-Raise", lang.X("metric.check_raise.help", "Check-raise frequency postflop."), false)
+	addStatsMetricDefinition(stats.MetricDelayedCBet, "Delayed CBet", lang.X("metric.delayed_cbet.help", "Delayed continuation bet frequency (check flop, bet turn)."), false)
+	addStatsMetricDefinition(stats.MetricWonWithoutSD, "Won without SD", lang.X("metric.won_without_sd.help", "Won hand without reaching showdown."), false)
+	addStatsMetricDefinition(stats.MetricWonAtSD, "Won at SD", lang.X("metric.won_at_sd.help", "Won hand at showdown."), false)
+	addStatsMetricDefinition(stats.MetricBBPer100, "bb/100", lang.X("metric.bb_per_100.help", "Net big blinds won per 100 hands."), false)
 }

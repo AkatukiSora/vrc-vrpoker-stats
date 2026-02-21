@@ -36,6 +36,11 @@ pre-commit:
       run: go vet -tags "wayland" ./...
       description: "Run go vet for quality checks"
 
+    check-i18n:
+      glob: "internal/ui/**/*.go"
+      run: mise run check-i18n
+      description: "Check UI strings are wrapped with lang.X/L/N/XN"
+
 # === Pre-push hooks ===
 # Runs before `git push` to ensure tests pass before sending to remote
 

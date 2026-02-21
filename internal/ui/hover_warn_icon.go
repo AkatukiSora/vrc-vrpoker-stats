@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -26,7 +27,7 @@ func (w *hoverWarnIcon) CreateRenderer() fyne.WidgetRenderer {
 	bg.StrokeColor = color.NRGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xD8}
 	bg.StrokeWidth = 1.5
 
-	mark := canvas.NewText("!", color.NRGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF})
+	mark := canvas.NewText(lang.X("warn_icon.mark", "!"), color.NRGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF})
 	mark.TextStyle = fyne.TextStyle{Bold: true}
 	mark.Alignment = fyne.TextAlignCenter
 	mark.TextSize = 13
