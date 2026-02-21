@@ -72,6 +72,104 @@ func cardsRow(cards []parser.Card, textSize float32, placeholder string) fyne.Ca
 	return container.NewHBox(items...)
 }
 
+type weightedMinRowLayout struct {
+	weights   []float32
+	minWidths []float32
+	padding   float32
+}
+
+func newWeightedMinRowLayout(weights, minWidths []float32, padding float32) fyne.Layout {
+	return &weightedMinRowLayout{weights: weights, minWidths: minWidths, padding: padding}
+}
+
+func brightenColor(c color.Color, amount float64) color.Color {
+	r, g, b, a := c.RGBA()
+	to8 := func(v uint32) float64 { return float64(v >> 8) }
+	clamp := func(v float64) uint8 {
+		if v < 0 {
+			return 0
+		}
+		if v > 255 {
+			return 255
+		}
+		return uint8(v)
+	}
+
+	return color.NRGBA{
+		R: clamp(to8(r) * (1 + amount)),
+		G: clamp(to8(g) * (1 + amount)),
+		B: clamp(to8(b) * (1 + amount)),
+		A: uint8(a >> 8),
+	}
+}
+
+func (l *weightedMinRowLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	n := len(objects)
+	if len(l.weights) < n {
+		n = len(l.weights)
+	}
+	if len(l.minWidths) < n {
+		n = len(l.minWidths)
+	}
+	if n == 0 {
+		return fyne.NewSize(0, 0)
+	}
+
+	var w float32
+	var h float32
+	for i := 0; i < n; i++ {
+		w += l.minWidths[i]
+		if objH := objects[i].MinSize().Height; objH > h {
+			h = objH
+		}
+	}
+	w += l.padding * float32(n-1)
+	return fyne.NewSize(w, h)
+}
+
+func (l *weightedMinRowLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	n := len(objects)
+	if len(l.weights) < n {
+		n = len(l.weights)
+	}
+	if len(l.minWidths) < n {
+		n = len(l.minWidths)
+	}
+	if n == 0 {
+		return
+	}
+
+	var totalMin float32
+	var totalWeight float32
+	for i := 0; i < n; i++ {
+		totalMin += l.minWidths[i]
+		totalWeight += l.weights[i]
+	}
+	totalMin += l.padding * float32(n-1)
+
+	extra := size.Width - totalMin
+	if extra < 0 {
+		extra = 0
+	}
+
+	x := float32(0)
+	for i := 0; i < n; i++ {
+		w := l.minWidths[i]
+		if totalWeight > 0 {
+			w += extra * (l.weights[i] / totalWeight)
+		}
+		if i == n-1 {
+			w = size.Width - x
+			if w < l.minWidths[i] {
+				w = l.minWidths[i]
+			}
+		}
+		objects[i].Move(fyne.NewPos(x, 0))
+		objects[i].Resize(fyne.NewSize(w, size.Height))
+		x += w + l.padding
+	}
+}
+
 func localSeatForHand(h *parser.Hand, fallback int) int {
 	if h == nil {
 		return fallback
@@ -121,12 +219,19 @@ func handSummaryLine1(h *parser.Hand, localSeat int) string {
 func handSummaryLine2(h *parser.Hand, localSeat int) string {
 	var result string
 	var posStr string
+	net := 0
 	seat := localSeatForHand(h, localSeat)
 	if lp, ok := h.Players[seat]; ok {
+		invested := 0
+		for _, act := range lp.Actions {
+			invested += act.Amount
+		}
+		net = lp.PotWon - invested
+
 		if lp.Won {
-			result = lang.X("hand_history.won", "Won {{.Chips}} chips", map[string]any{"Chips": lp.PotWon})
+			result = lang.X("hand_history.result_won_simple", "Won")
 		} else {
-			result = lang.X("hand_history.lost", "Lost")
+			result = lang.X("hand_history.result_lost_simple", "Lost")
 		}
 		if lp.Position != parser.PosUnknown {
 			posStr = lp.Position.String()
@@ -141,8 +246,80 @@ func handSummaryLine2(h *parser.Hand, localSeat int) string {
 		result = lang.X("hand_history.na", "N/A")
 		posStr = "?"
 	}
-	return fmt.Sprintf("Result: %s | Pot: %d | Position: %s | Players: %d",
-		result, h.TotalPot, posStr, h.NumPlayers)
+	return fmt.Sprintf("Result: %-4s | Net: %6s | Pot: %4d | Pos: %-4s | Players: %2d",
+		result, signedChips(net), h.TotalPot, posStr, h.NumPlayers)
+}
+
+func handSummaryEntryFields(h *parser.Hand, localSeat int) ([]string, []string) {
+	timeStr := h.StartTime.Format("15:04")
+	seat := localSeatForHand(h, localSeat)
+
+	holeStr := "??"
+	if lp, ok := h.Players[seat]; ok && len(lp.HoleCards) == 2 {
+		c1 := lp.HoleCards[0]
+		c2 := lp.HoleCards[1]
+		holeStr = c1.Rank + suitSymbol(c1.Suit) + " " + c2.Rank + suitSymbol(c2.Suit)
+	}
+
+	boardParts := make([]string, 0, len(h.CommunityCards))
+	for _, c := range h.CommunityCards {
+		boardParts = append(boardParts, c.Rank+suitSymbol(c.Suit))
+	}
+	boardStr := strings.Join(boardParts, " ")
+	if boardStr == "" {
+		boardStr = "-"
+	}
+
+	result := lang.X("hand_history.na", "N/A")
+	posStr := "?"
+	net := 0
+	if lp, ok := h.Players[seat]; ok {
+		invested := 0
+		for _, act := range lp.Actions {
+			invested += act.Amount
+		}
+		net = lp.PotWon - invested
+
+		if lp.Won {
+			result = lang.X("hand_history.result_won_simple", "Won")
+		} else {
+			result = lang.X("hand_history.result_lost_simple", "Lost")
+		}
+
+		if lp.Position != parser.PosUnknown {
+			posStr = lp.Position.String()
+		} else if seat == h.SBSeat {
+			posStr = "SB"
+		} else if seat == h.BBSeat {
+			posStr = "BB"
+		} else {
+			posStr = lang.X("hand_history.seat", "Seat {{.N}}", map[string]any{"N": seat})
+		}
+	}
+
+	line1 := []string{
+		lang.X("hand_history.summary.hand_short", "#{{.ID}}", map[string]any{"ID": h.ID}),
+		lang.X("hand_history.summary.time", "Time: {{.Time}}", map[string]any{"Time": timeStr}),
+		lang.X("hand_history.summary.cards", "Cards: {{.Cards}}", map[string]any{"Cards": holeStr}),
+		lang.X("hand_history.summary.board", "Board: {{.Board}}", map[string]any{"Board": boardStr}),
+	}
+
+	line2 := []string{
+		lang.X("hand_history.summary.result", "Result: {{.Value}}", map[string]any{"Value": result}),
+		lang.X("hand_history.summary.net", "Net: {{.Value}}", map[string]any{"Value": signedChips(net)}),
+		lang.X("hand_history.summary.pot", "Pot: {{.Value}}", map[string]any{"Value": h.TotalPot}),
+		lang.X("hand_history.summary.pos", "Pos: {{.Value}}", map[string]any{"Value": posStr}),
+		lang.X("hand_history.summary.players", "Players: {{.Value}}", map[string]any{"Value": h.NumPlayers}),
+	}
+
+	return line1, line2
+}
+
+func signedChips(v int) string {
+	if v > 0 {
+		return fmt.Sprintf("+%d", v)
+	}
+	return fmt.Sprintf("%d", v)
 }
 
 type HandHistoryViewState struct {
@@ -220,25 +397,38 @@ func streetActionSection(h *parser.Hand, street parser.Street, localSeat, openRa
 	header := canvas.NewText(strings.ToUpper(street.String()), color.NRGBA{R: 0xCF, G: 0xD8, B: 0xDC, A: 0xFF})
 	header.TextStyle = fyne.TextStyle{Bold: true}
 	header.TextSize = normalSize * 1.2
+	header.Alignment = fyne.TextAlignLeading
 
-	lines := make([]fyne.CanvasObject, 0, len(actions)+2)
-	lines = append(lines, sep, header)
+	colHeadColor := color.NRGBA{R: 0xB0, G: 0xBE, B: 0xC5, A: 0xFF}
+	colSeat := canvas.NewText(lang.X("hand_history.action_col.seat", "Seat"), colHeadColor)
+	colAction := canvas.NewText(lang.X("hand_history.action_col.action", "Action"), colHeadColor)
+	colAmount := canvas.NewText(lang.X("hand_history.action_col.amount", "Amount"), colHeadColor)
+	colTime := canvas.NewText(lang.X("hand_history.action_col.time", "Time"), colHeadColor)
+	for _, c := range []*canvas.Text{colSeat, colAction, colAmount, colTime} {
+		c.TextStyle = fyne.TextStyle{Bold: true}
+		c.TextSize = normalSize * 0.92
+		c.Alignment = fyne.TextAlignLeading
+	}
+
+	tableRows := make([]fyne.CanvasObject, 0, len(actions)+1)
+	tableRows = append(tableRows, container.NewGridWithColumns(4, colSeat, colAction, colAmount, colTime))
 
 	for _, sa := range actions {
-		label := lang.X("hand_history.seat", "Seat {{.N}}", map[string]any{"N": sa.seat})
+		seatLabel := lang.X("hand_history.seat", "Seat {{.N}}", map[string]any{"N": sa.seat})
 		if sa.seat == localSeat {
-			label += lang.X("hand_history.you", " (You)")
+			seatLabel += lang.X("hand_history.you", " (You)")
 		}
 		if sa.seat == openRaiser {
-			label += lang.X("hand_history.original_raiser", " (OR)")
+			seatLabel += lang.X("hand_history.original_raiser", " (OR)")
 		}
 
-		line := fmt.Sprintf("%s: %s", label, sa.act.Action.String())
+		amount := "-"
 		if sa.act.Amount > 0 {
-			line = fmt.Sprintf("%s %d", line, sa.act.Amount)
+			amount = fmt.Sprintf("%d", sa.act.Amount)
 		}
+		timeText := "-"
 		if !sa.act.Timestamp.IsZero() {
-			line = fmt.Sprintf("%s  @%s", line, sa.act.Timestamp.Format("15:04:05"))
+			timeText = sa.act.Timestamp.Format("15:04:05")
 		}
 
 		lineColor := color.NRGBA{R: 0xE0, G: 0xE0, B: 0xE0, A: 0xFF}
@@ -252,12 +442,19 @@ func streetActionSection(h *parser.Hand, street parser.Street, localSeat, openRa
 			lineColor = color.NRGBA{R: 0x7E, G: 0x57, B: 0xC2, A: 0xFF}
 		}
 
-		txt := canvas.NewText(line, lineColor)
-		txt.TextSize = normalSize
-		lines = append(lines, txt)
+		seatTxt := canvas.NewText(seatLabel, lineColor)
+		actionTxt := canvas.NewText(sa.act.Action.String(), lineColor)
+		amountTxt := canvas.NewText(amount, lineColor)
+		timeTxt := canvas.NewText(timeText, lineColor)
+		for _, c := range []*canvas.Text{seatTxt, actionTxt, amountTxt, timeTxt} {
+			c.TextSize = normalSize
+			c.Alignment = fyne.TextAlignLeading
+		}
+
+		tableRows = append(tableRows, container.NewGridWithColumns(4, seatTxt, actionTxt, amountTxt, timeTxt))
 	}
 
-	return container.NewVBox(lines...)
+	return container.NewVBox(sep, header, container.NewVBox(tableRows...))
 }
 
 // buildDetailPanel creates the right-side detail view for a selected hand.
@@ -303,15 +500,18 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 	var boardRows []fyne.CanvasObject
 	if len(flopCards) > 0 {
 		flopLabel := widget.NewLabel(lang.X("hand_history.flop", "Flop:"))
-		boardRows = append(boardRows, container.NewHBox(flopLabel, cardsRow(flopCards, normalSize, "")))
+		flopLabel.Alignment = fyne.TextAlignLeading
+		boardRows = append(boardRows, container.NewGridWithColumns(2, flopLabel, cardsRow(flopCards, normalSize, "")))
 	}
 	if len(turnCards) > 0 {
 		turnLabel := widget.NewLabel(lang.X("hand_history.turn", "Turn:"))
-		boardRows = append(boardRows, container.NewHBox(turnLabel, cardsRow(turnCards, normalSize, "")))
+		turnLabel.Alignment = fyne.TextAlignLeading
+		boardRows = append(boardRows, container.NewGridWithColumns(2, turnLabel, cardsRow(turnCards, normalSize, "")))
 	}
 	if len(riverCards) > 0 {
 		riverLabel := widget.NewLabel(lang.X("hand_history.river", "River:"))
-		boardRows = append(boardRows, container.NewHBox(riverLabel, cardsRow(riverCards, normalSize, "")))
+		riverLabel.Alignment = fyne.TextAlignLeading
+		boardRows = append(boardRows, container.NewGridWithColumns(2, riverLabel, cardsRow(riverCards, normalSize, "")))
 	}
 	if len(boardRows) == 0 {
 		boardRows = append(boardRows, widget.NewLabel(lang.X("hand_history.no_community_cards", "No community cards")))
@@ -322,27 +522,69 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 	resultHeader.TextStyle = fyne.TextStyle{Bold: true}
 
 	var resultText *canvas.Text
+	resultValue := lang.X("hand_history.na", "N/A")
+	netValue := "0"
+	potValue := fmt.Sprintf("%d", h.TotalPot)
+	positionValue := "?"
+	playersValue := fmt.Sprintf("%d", h.NumPlayers)
+
 	if lp, ok := h.Players[seat]; ok {
+		invested := 0
+		for _, act := range lp.Actions {
+			invested += act.Amount
+		}
+		netValue = signedChips(lp.PotWon - invested)
+
 		if lp.Won {
-			resultText = canvas.NewText(
-				lang.X("hand_history.won_detail", "Won  +{{.Chips}} chips (pot: {{.Pot}})", map[string]any{"Chips": lp.PotWon, "Pot": h.TotalPot}),
-				color.NRGBA{R: 0x4c, G: 0xaf, B: 0x50, A: 0xff},
-			)
+			resultValue = lang.X("hand_history.result_won_simple", "Won")
+			resultText = canvas.NewText(resultValue, color.NRGBA{R: 0x4c, G: 0xaf, B: 0x50, A: 0xff})
 		} else {
-			invested := 0
-			for _, act := range lp.Actions {
-				invested += act.Amount
-			}
-			resultText = canvas.NewText(
-				lang.X("hand_history.lost_detail", "Lost  -{{.Chips}} chips (pot: {{.Pot}})", map[string]any{"Chips": invested, "Pot": h.TotalPot}),
-				color.NRGBA{R: 0xf4, G: 0x43, B: 0x36, A: 0xff},
-			)
+			resultValue = lang.X("hand_history.result_lost_simple", "Lost")
+			resultText = canvas.NewText(resultValue, color.NRGBA{R: 0xf4, G: 0x43, B: 0x36, A: 0xff})
+		}
+
+		if lp.Position != parser.PosUnknown {
+			positionValue = lp.Position.String()
+		} else if seat == h.SBSeat {
+			positionValue = "SB"
+		} else if seat == h.BBSeat {
+			positionValue = "BB"
+		} else {
+			positionValue = lang.X("hand_history.seat", "Seat {{.N}}", map[string]any{"N": seat})
 		}
 	} else {
 		resultText = canvas.NewText(lang.X("hand_history.not_in_hand", "Not in this hand"), theme.ForegroundColor())
+		netValue = "-"
+		potValue = "-"
+		positionValue = "-"
+		playersValue = "-"
 	}
 	resultText.TextStyle = fyne.TextStyle{Bold: true}
 	resultText.TextSize = normalSize * 1.2
+	resultText.Alignment = fyne.TextAlignLeading
+
+	resultTable := container.NewVBox(
+		container.NewGridWithColumns(2,
+			widget.NewLabel(lang.X("hand_history.result", "Result")),
+			resultText,
+		),
+		container.NewGridWithColumns(2,
+			widget.NewLabel(lang.X("hand_history.net_chips", "Net Chips")),
+			widget.NewLabel(netValue),
+		),
+		container.NewGridWithColumns(2,
+			widget.NewLabel(lang.X("hand_history.pot", "Pot")),
+			widget.NewLabel(potValue),
+		),
+		container.NewGridWithColumns(2,
+			widget.NewLabel(lang.X("hand_history.position", "Position")),
+			widget.NewLabel(positionValue),
+		),
+		container.NewGridWithColumns(2,
+			widget.NewLabel(lang.X("hand_history.players", "Players")),
+			widget.NewLabel(playersValue),
+		),
+	)
 
 	// ----- Actions -----
 	actionsHeader := widget.NewLabel(lang.X("hand_history.all_actions", "All Player Actions"))
@@ -386,7 +628,7 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 		boardSection,
 		sep(),
 		resultHeader,
-		resultText,
+		resultTable,
 		sep(),
 		actionsHeader,
 		actionsSection,
@@ -421,19 +663,62 @@ func NewHandHistoryTab(hands []*parser.Hand, localSeat int, state *HandHistoryVi
 	list := widget.NewList(
 		func() int { return len(reversed) },
 		func() fyne.CanvasObject {
-			line1 := widget.NewLabel("")
-			line1.TextStyle = fyne.TextStyle{Bold: true}
-			line2 := widget.NewLabel("")
-			line2.TextStyle = fyne.TextStyle{Italic: true}
-			return container.NewVBox(line1, line2)
+			row1 := make([]fyne.CanvasObject, 0, 4)
+			for i := 0; i < 4; i++ {
+				lbl := widget.NewLabel("")
+				lbl.Alignment = fyne.TextAlignLeading
+				lbl.TextStyle = fyne.TextStyle{Bold: true}
+				row1 = append(row1, lbl)
+			}
+
+			row2 := make([]fyne.CanvasObject, 0, 5)
+			for i := 0; i < 5; i++ {
+				lbl := widget.NewLabel("")
+				lbl.Alignment = fyne.TextAlignLeading
+				lbl.TextStyle = fyne.TextStyle{Italic: true}
+				row2 = append(row2, lbl)
+			}
+
+			row1Wrap := container.New(newWeightedMinRowLayout(
+				[]float32{0.7, 1.1, 1.8, 3.4},
+				[]float32{56, 88, 128, 210},
+				theme.Padding(),
+			), row1...)
+			row2Wrap := container.New(newWeightedMinRowLayout(
+				[]float32{1.0, 1.2, 1.0, 0.8, 1.0},
+				[]float32{88, 96, 84, 72, 88},
+				theme.Padding(),
+			), row2...)
+
+			body := container.NewVBox(row1Wrap, row2Wrap)
+
+			entryBg := canvas.NewRectangle(brightenColor(theme.InputBackgroundColor(), 0.10))
+			entryBg.CornerRadius = 6
+			card := container.NewStack(entryBg, container.NewPadded(body))
+
+			gapTop := canvas.NewRectangle(color.Transparent)
+			gapTop.SetMinSize(fyne.NewSize(0, 3))
+			gapBottom := canvas.NewRectangle(color.Transparent)
+			gapBottom.SetMinSize(fyne.NewSize(0, 3))
+			return container.NewVBox(gapTop, card, gapBottom)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
-			vbox := obj.(*fyne.Container)
+			entry := obj.(*fyne.Container)
+			card := entry.Objects[1].(*fyne.Container)
+			padded := card.Objects[1].(*fyne.Container)
+			vbox := padded.Objects[0].(*fyne.Container)
 			h := reversed[id]
-			line1 := vbox.Objects[0].(*widget.Label)
-			line2 := vbox.Objects[1].(*widget.Label)
-			line1.SetText(handSummaryLine1(h, localSeat))
-			line2.SetText(handSummaryLine2(h, localSeat))
+			line1, line2 := handSummaryEntryFields(h, localSeat)
+
+			row1 := vbox.Objects[0].(*fyne.Container)
+			for i := 0; i < 4; i++ {
+				row1.Objects[i].(*widget.Label).SetText(line1[i])
+			}
+
+			row2 := vbox.Objects[1].(*fyne.Container)
+			for i := 0; i < 5; i++ {
+				row2.Objects[i].(*widget.Label).SetText(line2[i])
+			}
 		},
 	)
 
@@ -454,8 +739,10 @@ func NewHandHistoryTab(hands []*parser.Hand, localSeat int, state *HandHistoryVi
 		}
 	}
 
-	split := container.NewHSplit(list, detailContent)
-	split.Offset = 0.40
+	listWithSharedHScroll := container.NewHScroll(list)
+
+	split := container.NewHSplit(listWithSharedHScroll, detailContent)
+	split.Offset = 0.48
 
 	return split
 }

@@ -28,16 +28,18 @@ var positionDisplayOrder = []parser.Position{
 }
 
 type positionCellData struct {
-	Main   string
-	Note   string
-	Color  color.Color
-	IsHead bool
+	Main     string
+	Note     string
+	Color    color.Color
+	ShowWarn bool
+	IsHead   bool
 }
 
 type positionTableCell struct {
 	widget.BaseWidget
 	main *canvas.Text
 	note *canvas.Text
+	warn *canvas.Text
 	wrap *fyne.Container
 }
 
@@ -56,8 +58,13 @@ func (c *positionTableCell) CreateRenderer() fyne.WidgetRenderer {
 	c.note.TextSize = theme.TextSize() * 0.78
 	c.note.Color = color.NRGBA{R: 0xA8, G: 0xAF, B: 0xB8, A: 0xFF}
 
+	c.warn = canvas.NewText("", color.NRGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xE8})
+	c.warn.TextStyle = fyne.TextStyle{Bold: true}
+	c.warn.Alignment = fyne.TextAlignTrailing
+	c.warn.TextSize = theme.TextSize() * 0.86
+
 	c.wrap = container.NewBorder(
-		nil,
+		container.NewHBox(layout.NewSpacer(), c.warn),
 		container.NewHBox(layout.NewSpacer(), c.note),
 		nil,
 		nil,
@@ -80,12 +87,19 @@ func (c *positionTableCell) Set(data positionCellData) {
 	c.main.TextStyle = fyne.TextStyle{Bold: data.IsHead}
 
 	c.note.Text = data.Note
+	c.note.Color = color.NRGBA{R: 0xA8, G: 0xAF, B: 0xB8, A: 0xFF}
+
+	c.warn.Text = ""
+	if data.ShowWarn && !data.IsHead {
+		c.warn.Text = lang.X("warn_icon.mark", "!")
+	}
 	if data.IsHead {
 		c.note.Text = ""
 	}
 
 	c.main.Refresh()
 	c.note.Refresh()
+	c.warn.Refresh()
 }
 
 func positionColumnWidth(metric MetricDefinition) float32 {
@@ -130,10 +144,12 @@ func NewPositionStatsTab(s *stats.Stats, visibility *MetricVisibilityState) fyne
 		row := []positionCellData{{Main: pos.String(), IsHead: false}}
 		for _, metric := range metricDefs {
 			value := metric.PositionValue(ps)
+			showWarn := metric.MinSamples > 0 && value.Opportunities < metric.MinSamples
 			row = append(row, positionCellData{
-				Main:  value.Display,
-				Note:  metricFootnoteText(value.Opportunities, metric.MinSamples),
-				Color: value.Color,
+				Main:     value.Display,
+				Note:     metricFootnoteText(value.Opportunities, metric.MinSamples),
+				Color:    value.Color,
+				ShowWarn: showWarn,
 			})
 		}
 		rows = append(rows, row)
@@ -162,5 +178,5 @@ func NewPositionStatsTab(s *stats.Stats, visibility *MetricVisibilityState) fyne
 		t.SetColumnWidth(i+1, positionColumnWidth(m))
 	}
 
-	return container.NewScroll(t)
+	return withFixedLowSampleLegend(container.NewScroll(t))
 }

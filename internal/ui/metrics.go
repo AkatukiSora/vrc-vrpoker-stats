@@ -112,9 +112,6 @@ func metricFootnoteText(opportunities, minSamples int) string {
 	if opportunities < 0 {
 		return ""
 	}
-	if minSamples > 0 && opportunities < minSamples {
-		return lang.X("metric.footnote.low_sample", "Ref n={{.N}}", map[string]any{"N": opportunities})
-	}
 	return lang.X("metric.footnote.normal", "n={{.N}}", map[string]any{"N": opportunities})
 }
 

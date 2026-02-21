@@ -72,6 +72,10 @@ func (st *SettingsTab) build() fyne.CanvasObject {
 	applyBtn.Importance = widget.HighImportance
 
 	pathRow := container.NewBorder(nil, nil, nil, container.NewHBox(browseBtn, applyBtn), pathEntry)
+	pathInfoLabel := widget.NewLabel(
+		lang.X("settings.log_path_info", "The application monitors your VRChat log file in real-time.\nLog files are typically found at:\n\n  Linux (Steam Proton):\n  ~/.local/share/Steam/steamapps/compatdata/438100/pfx/\n  drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat/\n\n  Windows:\n  %APPDATA%\\..\\LocalLow\\VRChat\\VRChat\\\n\nStatistics are calculated for VR Poker world sessions only.\nHistorical logs (from before the app was started) are also analyzed."),
+	)
+	pathInfoLabel.Wrapping = fyne.TextWrapBreak
 
 	metricsTitle := widget.NewLabelWithStyle(lang.X("settings.metrics_title", "Metrics Visibility"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	metricsHint := widget.NewLabel(lang.X("settings.metrics_hint", "Choose which metrics are shown in Overview and Position Stats."))
@@ -117,13 +121,11 @@ func (st *SettingsTab) build() fyne.CanvasObject {
 		row := container.NewBorder(nil, nil, nil, helpBtn, check)
 		metricRows = append(metricRows, row)
 	}
-	metricsSection := container.NewVBox(metricRows...)
-
-	// Info box
-	infoLabel := widget.NewLabel(
-		lang.X("settings.info_text", "The application monitors your VRChat log file in real-time.\nLog files are typically found at:\n\n  Linux (Steam Proton):\n  ~/.local/share/Steam/steamapps/compatdata/438100/pfx/\n  drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat/\n\n  Windows:\n  %APPDATA%\\..\\LocalLow\\VRChat\\VRChat\\\n\nStatistics are calculated for VR Poker world sessions only.\nHistorical logs (from before the app was started) are also analyzed."),
-	)
-	infoLabel.Wrapping = fyne.TextWrapBreak
+	metricsColumns := 3
+	if st.win != nil && st.win.Canvas().Size().Width < 900 {
+		metricsColumns = 2
+	}
+	metricsSection := container.NewGridWithColumns(metricsColumns, metricRows...)
 
 	// About section
 	aboutTitle := widget.NewLabelWithStyle(lang.X("settings.about.title", "About"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -137,13 +139,12 @@ func (st *SettingsTab) build() fyne.CanvasObject {
 		widget.NewSeparator(),
 		pathLabel,
 		pathRow,
+		pathInfoLabel,
 		widget.NewSeparator(),
 		metricsTitle,
 		metricsHint,
 		presetRow,
 		metricsSection,
-		widget.NewSeparator(),
-		infoLabel,
 		widget.NewSeparator(),
 		aboutTitle,
 		aboutText,

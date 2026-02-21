@@ -217,7 +217,7 @@ func (a *App) doRefreshCurrentTab() {
 	selected := a.tabs.SelectedIndex()
 	switch selected {
 	case 0: // Overview
-		obj := NewOverviewTab(s, a.metricState)
+		obj := NewOverviewTab(s, a.metricState, a.win)
 		a.overviewContent.Objects = []fyne.CanvasObject{obj}
 		a.overviewContent.Refresh()
 	case 1: // Position Stats
