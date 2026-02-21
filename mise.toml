@@ -47,6 +47,35 @@ run = "go mod tidy"
 description = "Remove build artifacts"
 run = 'rm -f "$BINARY" "${BINARY}-debug"'
 
+[tasks.setup]
+description = "Set up development environment (install lefthook, tidy modules)"
+run = '''
+  echo "🔧 Setting up development environment..."
+  
+  # Tidy Go modules
+  echo "📦 Tidying Go modules..."
+  go mod tidy
+  
+  # Install lefthook if not already installed
+  if ! command -v lefthook &> /dev/null; then
+    echo "📥 Installing lefthook..."
+    go install github.com/evilmartians/lefthook@latest
+  else
+    echo "✅ lefthook already installed"
+  fi
+  
+  # Install lefthook git hooks
+  echo "🪝 Installing git hooks via lefthook..."
+  lefthook install -f
+  
+  echo "✨ Development environment setup complete!"
+  echo ""
+  echo "Next steps:"
+  echo "  - Review lefthook.yaml for hook configuration"
+  echo "  - Run 'mise run build' to build the binary"
+  echo "  - Run 'mise run test' to run tests"
+'''
+
 [tasks.ci]
 description = "Run full CI pipeline locally (lint + test + build)"
 depends = ["lint", "test", "build"]
