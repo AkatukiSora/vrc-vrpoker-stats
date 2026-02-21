@@ -503,10 +503,13 @@ func (p *Parser) calculatePreflopStats(h *Hand) {
 
 	// betLevel tracks aggression:
 	// hasBlinds:   0=preblind, 1=after SB, 2=after BB (=open), 3=3bet, ...
-	// !hasBlinds:  0=before first bet, 1=first bet (open), 2=2bet/3bet, ...
+	// !hasBlinds:  1=before first aggression, 2=first open raise (PFR), 3=3bet, ...
 	betLevel := 0
 	if hasBlinds {
 		betLevel = 1 // SB counts as level 1 even if not logged
+	} else {
+		// No explicit blind logs in this hand. Treat first aggression as open raise (PFR).
+		betLevel = 1
 	}
 
 	// Track who raised at each level for FoldTo3Bet

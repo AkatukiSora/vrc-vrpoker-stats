@@ -27,6 +27,9 @@ type Stats struct {
 
 	// Hand range data
 	HandRange *HandRangeTable
+
+	// Registry-driven metrics (new framework, legacy fields remain above)
+	Metrics map[MetricID]MetricValue
 }
 
 // PositionStats holds stats for a specific position
@@ -243,4 +246,13 @@ func (ps *PositionStats) FoldTo3BetRate() float64 {
 		return 0
 	}
 	return float64(ps.FoldTo3Bet) / float64(ps.FoldTo3BetOpp) * 100
+}
+
+// Metric returns a computed metric by id.
+func (s *Stats) Metric(id MetricID) (MetricValue, bool) {
+	if s == nil || s.Metrics == nil {
+		return MetricValue{}, false
+	}
+	m, ok := s.Metrics[id]
+	return m, ok
 }

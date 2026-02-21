@@ -32,6 +32,7 @@ type App struct {
 	lastLocalSeat int
 	rangeState    *HandRangeViewState
 	historyState  *HandHistoryViewState
+	metricState   *MetricVisibilityState
 
 	// UI tabs content containers (for refresh)
 	overviewContent  *fyne.Container
@@ -56,6 +57,7 @@ func Run() {
 		win:          win,
 		rangeState:   &HandRangeViewState{},
 		historyState: &HandHistoryViewState{SelectedHandID: -1},
+		metricState:  NewMetricVisibilityState(),
 	}
 
 	dbPath := filepath.Join(".", "vrpoker-stats.db")
@@ -84,9 +86,13 @@ func (a *App) buildUI() fyne.CanvasObject {
 		container.NewTabItem("Position Stats", a.posStatsContent),
 		container.NewTabItem("Hand Range", a.handRangeContent),
 		container.NewTabItem("Hand History", a.handHistContent),
-		container.NewTabItem("Settings", NewSettingsTab("", a.win, func(path string) {
-			go a.changeLogFile(path)
-		})),
+		container.NewTabItem("Settings", NewSettingsTab(
+			"",
+			a.win,
+			func(path string) { go a.changeLogFile(path) },
+			a.metricState,
+			func() { a.doRefreshCurrentTab() },
+		)),
 	)
 	a.tabs.SetTabLocation(container.TabLocationTop)
 
@@ -210,11 +216,11 @@ func (a *App) doRefreshCurrentTab() {
 	selected := a.tabs.SelectedIndex()
 	switch selected {
 	case 0: // Overview
-		obj := NewOverviewTab(s)
+		obj := NewOverviewTab(s, a.metricState)
 		a.overviewContent.Objects = []fyne.CanvasObject{obj}
 		a.overviewContent.Refresh()
 	case 1: // Position Stats
-		obj := NewPositionStatsTab(s)
+		obj := NewPositionStatsTab(s, a.metricState)
 		a.posStatsContent.Objects = []fyne.CanvasObject{obj}
 		a.posStatsContent.Refresh()
 	case 2: // Hand Range
