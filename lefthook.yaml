@@ -1,0 +1,65 @@
+---
+# Lefthook configuration for git hooks
+# https://github.com/evilmartians/lefthook
+
+fail: mixed
+
+# === Pre-commit hooks ===
+# Runs before `git commit` to ensure code quality and module integrity
+
+pre-commit:
+  parallel: false
+
+  commands:
+    # go mod tidy: ensure go.mod and go.sum are clean and match source code
+    go-mod-tidy:
+      glob: "*.go"
+      run: go mod tidy
+      stage_fixed: true
+      description: "Tidy Go modules and update go.mod/go.sum"
+
+    # gofmt: auto-format all Go files that are staged
+    gofmt:
+      glob: "*.go"
+      run: gofmt -s -w {staged_files}
+      stage_fixed: true
+      description: "Format staged Go files with gofmt"
+
+    # go vet: run static analysis on staged files to catch potential bugs
+    go-vet:
+      glob: "*.go"
+      run: go vet -tags "wayland" ./...
+      description: "Run go vet for quality checks"
+
+# === Pre-push hooks ===
+# Runs before `git push` to ensure tests pass before sending to remote
+
+pre-push:
+  parallel: true
+
+  commands:
+    # Run fast unit tests (parser/stats/watcher tests)
+    # This excludes integration tests to keep push-time acceptable
+    unit-tests:
+      run: go test -v -run "Test[^R]" ./internal/parser/... ./internal/stats/... ./internal/watcher/...
+      description: "Run fast unit tests before push"
+      skip:
+        - merge
+        - rebase
+
+# === Commit-msg hooks (optional) ===
+# Uncomment to enforce commit message conventions
+
+# commit-msg:
+#   commands:
+#     # Example: enforce conventional commits
+#     conventional:
+#       run: echo "Commit message validation could go here"
+
+# === Post-merge hooks (optional) ===
+# Useful for reminding developers to run tasks after pulling changes
+
+# post-merge:
+#   commands:
+#     go-mod-check:
+#       run: echo "Remember to run 'go mod tidy' if go.mod was modified"
