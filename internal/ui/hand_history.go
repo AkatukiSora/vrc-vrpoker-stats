@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"sort"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -70,13 +71,31 @@ func cardsRow(cards []parser.Card, textSize float32, placeholder string) fyne.Ca
 	return container.NewHBox(items...)
 }
 
+func localSeatForHand(h *parser.Hand, fallback int) int {
+	if h == nil {
+		return fallback
+	}
+	if h.LocalPlayerSeat >= 0 {
+		if _, ok := h.Players[h.LocalPlayerSeat]; ok {
+			return h.LocalPlayerSeat
+		}
+	}
+	if fallback >= 0 {
+		if _, ok := h.Players[fallback]; ok {
+			return fallback
+		}
+	}
+	return -1
+}
+
 // handSummaryLine1 formats the first summary line for a hand list item.
 func handSummaryLine1(h *parser.Hand, localSeat int) string {
 	timeStr := h.StartTime.Format("15:04")
+	seat := localSeatForHand(h, localSeat)
 
 	// Hole cards
 	var holeStr string
-	if lp, ok := h.Players[localSeat]; ok && len(lp.HoleCards) == 2 {
+	if lp, ok := h.Players[seat]; ok && len(lp.HoleCards) == 2 {
 		c1 := lp.HoleCards[0]
 		c2 := lp.HoleCards[1]
 		holeStr = c1.Rank + suitSymbol(c1.Suit) + " " + c2.Rank + suitSymbol(c2.Suit)
@@ -101,19 +120,143 @@ func handSummaryLine1(h *parser.Hand, localSeat int) string {
 func handSummaryLine2(h *parser.Hand, localSeat int) string {
 	var result string
 	var posStr string
-	if lp, ok := h.Players[localSeat]; ok {
+	seat := localSeatForHand(h, localSeat)
+	if lp, ok := h.Players[seat]; ok {
 		if lp.Won {
 			result = fmt.Sprintf("Won %d chips", lp.PotWon)
 		} else {
 			result = "Lost"
 		}
-		posStr = lp.Position.String()
+		if lp.Position != parser.PosUnknown {
+			posStr = lp.Position.String()
+		} else if seat == h.SBSeat {
+			posStr = "SB"
+		} else if seat == h.BBSeat {
+			posStr = "BB"
+		} else {
+			posStr = fmt.Sprintf("Seat %d", seat)
+		}
 	} else {
 		result = "N/A"
 		posStr = "?"
 	}
 	return fmt.Sprintf("Result: %s | Pot: %d | Position: %s | Players: %d",
 		result, h.TotalPot, posStr, h.NumPlayers)
+}
+
+type HandHistoryViewState struct {
+	SelectedHandID int
+}
+
+type seatAction struct {
+	seat int
+	act  parser.PlayerAction
+}
+
+func originalRaiserSeat(h *parser.Hand) int {
+	if h == nil {
+		return -1
+	}
+	var actions []seatAction
+	for seat, pi := range h.Players {
+		if pi == nil {
+			continue
+		}
+		for _, act := range pi.Actions {
+			if act.Street == parser.StreetPreFlop {
+				actions = append(actions, seatAction{seat: seat, act: act})
+			}
+		}
+	}
+	sort.Slice(actions, func(i, j int) bool {
+		if actions[i].act.Timestamp.Equal(actions[j].act.Timestamp) {
+			return actions[i].seat < actions[j].seat
+		}
+		return actions[i].act.Timestamp.Before(actions[j].act.Timestamp)
+	})
+	for _, a := range actions {
+		switch a.act.Action {
+		case parser.ActionBet, parser.ActionRaise, parser.ActionAllIn:
+			return a.seat
+		}
+	}
+	return -1
+}
+
+func streetActions(h *parser.Hand, street parser.Street) []seatAction {
+	if h == nil {
+		return nil
+	}
+	out := make([]seatAction, 0)
+	for seat, pi := range h.Players {
+		if pi == nil {
+			continue
+		}
+		for _, act := range pi.Actions {
+			if act.Street == street {
+				out = append(out, seatAction{seat: seat, act: act})
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].act.Timestamp.Equal(out[j].act.Timestamp) {
+			return out[i].seat < out[j].seat
+		}
+		return out[i].act.Timestamp.Before(out[j].act.Timestamp)
+	})
+	return out
+}
+
+func streetActionSection(h *parser.Hand, street parser.Street, localSeat, openRaiser int, normalSize float32) fyne.CanvasObject {
+	actions := streetActions(h, street)
+	if len(actions) == 0 {
+		return nil
+	}
+
+	sep := canvas.NewRectangle(theme.ShadowColor())
+	sep.SetMinSize(fyne.NewSize(0, 1))
+
+	header := canvas.NewText(strings.ToUpper(street.String()), color.NRGBA{R: 0xCF, G: 0xD8, B: 0xDC, A: 0xFF})
+	header.TextStyle = fyne.TextStyle{Bold: true}
+	header.TextSize = normalSize * 1.2
+
+	lines := make([]fyne.CanvasObject, 0, len(actions)+2)
+	lines = append(lines, sep, header)
+
+	for _, sa := range actions {
+		label := fmt.Sprintf("Seat %d", sa.seat)
+		if sa.seat == localSeat {
+			label += " (You)"
+		}
+		if sa.seat == openRaiser {
+			label += " (OR)"
+		}
+
+		line := fmt.Sprintf("%s: %s", label, sa.act.Action.String())
+		if sa.act.Amount > 0 {
+			line = fmt.Sprintf("%s %d", line, sa.act.Amount)
+		}
+		if !sa.act.Timestamp.IsZero() {
+			line = fmt.Sprintf("%s  @%s", line, sa.act.Timestamp.Format("15:04:05"))
+		}
+
+		lineColor := color.NRGBA{R: 0xE0, G: 0xE0, B: 0xE0, A: 0xFF}
+		if sa.seat == openRaiser {
+			lineColor = color.NRGBA{R: 0xFF, G: 0xB3, B: 0x00, A: 0xFF}
+		}
+		if sa.seat == localSeat {
+			lineColor = color.NRGBA{R: 0x66, G: 0xBB, B: 0x6A, A: 0xFF}
+		}
+		if sa.seat == localSeat && sa.seat == openRaiser {
+			lineColor = color.NRGBA{R: 0x7E, G: 0x57, B: 0xC2, A: 0xFF}
+		}
+
+		txt := canvas.NewText(line, lineColor)
+		txt.TextSize = normalSize
+		lines = append(lines, txt)
+	}
+
+	return container.NewVBox(lines...)
 }
 
 // buildDetailPanel creates the right-side detail view for a selected hand.
@@ -125,6 +268,8 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 		return container.NewCenter(msg)
 	}
 
+	seat := localSeatForHand(h, localSeat)
+
 	bigSize := theme.TextSize() * 1.8
 	normalSize := theme.TextSize()
 
@@ -133,7 +278,7 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 	holeHeader.TextStyle = fyne.TextStyle{Bold: true}
 
 	var holeCards []parser.Card
-	if lp, ok := h.Players[localSeat]; ok {
+	if lp, ok := h.Players[seat]; ok {
 		holeCards = lp.HoleCards
 	}
 	holeRow := cardsRow(holeCards, bigSize, "Cards not recorded")
@@ -176,7 +321,7 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 	resultHeader.TextStyle = fyne.TextStyle{Bold: true}
 
 	var resultText *canvas.Text
-	if lp, ok := h.Players[localSeat]; ok {
+	if lp, ok := h.Players[seat]; ok {
 		if lp.Won {
 			resultText = canvas.NewText(
 				fmt.Sprintf("Won  +%d chips (pot: %d)", lp.PotWon, h.TotalPot),
@@ -199,27 +344,32 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 	resultText.TextSize = normalSize * 1.2
 
 	// ----- Actions -----
-	actionsHeader := widget.NewLabel("Actions")
+	actionsHeader := widget.NewLabel("All Player Actions")
 	actionsHeader.TextStyle = fyne.TextStyle{Bold: true}
 
-	var actionLines []fyne.CanvasObject
-	if lp, ok := h.Players[localSeat]; ok && len(lp.Actions) > 0 {
-		for _, act := range lp.Actions {
-			var line string
-			if act.Amount > 0 {
-				line = fmt.Sprintf("[%s] %s %d", act.Street.String(), act.Action.String(), act.Amount)
-			} else {
-				line = fmt.Sprintf("[%s] %s", act.Street.String(), act.Action.String())
-			}
-			actionLines = append(actionLines, widget.NewLabel(line))
+	openRaiser := originalRaiserSeat(h)
+	streetOrder := []parser.Street{
+		parser.StreetPreFlop,
+		parser.StreetFlop,
+		parser.StreetTurn,
+		parser.StreetRiver,
+		parser.StreetShowdown,
+	}
+
+	actionSections := make([]fyne.CanvasObject, 0)
+	for _, st := range streetOrder {
+		sec := streetActionSection(h, st, seat, openRaiser, normalSize)
+		if sec != nil {
+			actionSections = append(actionSections, sec)
 		}
-	} else {
-		actionLines = append(actionLines, widget.NewLabel("No actions recorded"))
+	}
+	if len(actionSections) == 0 {
+		actionSections = append(actionSections, widget.NewLabel("No actions recorded"))
 	}
 
 	// ----- Assemble -----
 	boardSection := container.NewVBox(boardRows...)
-	actionsSection := container.NewVBox(actionLines...)
+	actionsSection := container.NewVBox(actionSections...)
 
 	sep := func() fyne.CanvasObject {
 		r := canvas.NewRectangle(theme.ShadowColor())
@@ -246,12 +396,15 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 
 // NewHandHistoryTab creates the "Hand History" tab canvas object.
 // hands should be in chronological order; this function reverses them for display.
-func NewHandHistoryTab(hands []*parser.Hand, localSeat int) fyne.CanvasObject {
+func NewHandHistoryTab(hands []*parser.Hand, localSeat int, state *HandHistoryViewState) fyne.CanvasObject {
 	if len(hands) == 0 {
 		msg := widget.NewLabel("No hands recorded yet.\nStart playing in the VR Poker world!")
 		msg.Alignment = fyne.TextAlignCenter
 		msg.Wrapping = fyne.TextWrapWord
 		return container.NewCenter(msg)
+	}
+	if state == nil {
+		state = &HandHistoryViewState{SelectedHandID: -1}
 	}
 
 	// Reverse order: newest first.
@@ -285,9 +438,19 @@ func NewHandHistoryTab(hands []*parser.Hand, localSeat int) fyne.CanvasObject {
 
 	list.OnSelected = func(id widget.ListItemID) {
 		h := reversed[id]
+		state.SelectedHandID = h.ID
 		detail := buildDetailPanel(h, localSeat)
 		detailContent.Objects = []fyne.CanvasObject{detail}
 		detailContent.Refresh()
+	}
+
+	if state.SelectedHandID >= 0 {
+		for i, h := range reversed {
+			if h.ID == state.SelectedHandID {
+				list.Select(i)
+				break
+			}
+		}
 	}
 
 	split := container.NewHSplit(list, detailContent)

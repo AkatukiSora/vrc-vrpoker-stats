@@ -18,7 +18,7 @@ type LogWatcher struct {
 	LogPath   string
 	offset    int64
 	watcher   *fsnotify.Watcher
-	OnNewData func(lines []string)
+	OnNewData func(lines []string, startOffset int64, endOffset int64)
 	OnError   func(err error)
 	done      chan struct{}
 }
@@ -119,6 +119,7 @@ func (lw *LogWatcher) readNewContent() error {
 	if info.Size() <= lw.offset {
 		return nil // No new content
 	}
+	startOffset := lw.offset
 
 	if _, err := f.Seek(lw.offset, io.SeekStart); err != nil {
 		return err
@@ -145,7 +146,7 @@ func (lw *LogWatcher) readNewContent() error {
 	}
 
 	if len(lines) > 0 && lw.OnNewData != nil {
-		lw.OnNewData(lines)
+		lw.OnNewData(lines, startOffset, lw.offset)
 	}
 
 	return nil

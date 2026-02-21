@@ -11,15 +11,15 @@ type Stats struct {
 	WonShowdowns  int
 
 	// Pre-flop stats
-	VPIPHands     int // Hands where player voluntarily put money in pot
-	PFRHands      int // Hands where player raised pre-flop
-	ThreeBetHands int // Hands where player 3-bet
-	ThreeBetOpportunities int
-	FoldTo3BetHands int
+	VPIPHands               int // Hands where player voluntarily put money in pot
+	PFRHands                int // Hands where player raised pre-flop
+	ThreeBetHands           int // Hands where player 3-bet
+	ThreeBetOpportunities   int
+	FoldTo3BetHands         int
 	FoldTo3BetOpportunities int
 
 	// Financial
-	TotalPotWon  int
+	TotalPotWon   int
 	TotalInvested int // total chips put into pots
 
 	// Position breakdown
@@ -31,19 +31,19 @@ type Stats struct {
 
 // PositionStats holds stats for a specific position
 type PositionStats struct {
-	Position  parser.Position
-	Hands     int
-	Won       int
-	VPIP      int
-	PFR       int
-	ThreeBet  int
-	ThreeBetOpp int
-	FoldTo3Bet int
+	Position      parser.Position
+	Hands         int
+	Won           int
+	VPIP          int
+	PFR           int
+	ThreeBet      int
+	ThreeBetOpp   int
+	FoldTo3Bet    int
 	FoldTo3BetOpp int
-	Showdowns int
-	WonShowdowns int
-	PotWon    int
-	Invested  int
+	Showdowns     int
+	WonShowdowns  int
+	PotWon        int
+	Invested      int
 }
 
 // HandRangeTable is a 13x13 matrix of hand combo statistics
@@ -52,35 +52,69 @@ type HandRangeTable struct {
 	// Standard 13x13 poker range table
 	// Rows/cols: A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, 2
 	Cells [13][13]*HandRangeCell
+
+	// Action totals across the whole range
+	TotalActions [RangeActionBucketCount]int
+
+	// Action totals grouped by hand classes/draw classes
+	ByHandClass map[string]*HandClassStats
+}
+
+// RangeActionBucket is the action taxonomy used in range visualization.
+type RangeActionBucket int
+
+const (
+	RangeActionCheck RangeActionBucket = iota
+	RangeActionCall
+	RangeActionBetSmall
+	RangeActionBetHalf
+	RangeActionBetTwoThird
+	RangeActionBetPot
+	RangeActionBetOver
+	RangeActionFold
+	RangeActionBucketCount
+)
+
+var RangeActionLabels = [RangeActionBucketCount]string{
+	"Check",
+	"Call",
+	"Bet <=1/3",
+	"Bet ~1/2",
+	"Bet ~2/3",
+	"Bet ~Pot",
+	"Overbet",
+	"Fold",
+}
+
+type HandClassStats struct {
+	Hands   int
+	Actions [RangeActionBucketCount]int
 }
 
 // HandRangeCell holds statistics for a specific hand combo (e.g., AKs, 77, T9o)
 type HandRangeCell struct {
-	Rank1   string // higher rank
-	Rank2   string // lower rank (same as Rank1 for pairs)
-	Suited  bool   // true if suited, false if offsuit (only applies when Rank1 != Rank2)
-	IsPair  bool
+	Rank1  string // higher rank
+	Rank2  string // lower rank (same as Rank1 for pairs)
+	Suited bool   // true if suited, false if offsuit (only applies when Rank1 != Rank2)
+	IsPair bool
 
-	// Action counts (pre-flop summary)
-	Dealt int // times dealt this hand
-	Fold  int // folded pre-flop
-	Call  int // called or checked pre-flop
-	Bet   int // bet pre-flop (no prior bet logged)
-	Raise int // raised pre-flop
-	Won   int // times won
+	// Action counts
+	Dealt   int
+	Actions [RangeActionBucketCount]int
+	Won     int // times won
 
 	// Position breakdown for this combo
 	ByPosition map[parser.Position]*HandRangePositionCell
+
+	// Action totals grouped by hand classes/draw classes for this combo only
+	ByHandClass map[string]*HandClassStats
 }
 
 // HandRangePositionCell holds per-position stats for a hand combo
 type HandRangePositionCell struct {
-	Dealt int
-	Fold  int
-	Call  int
-	Bet   int
-	Raise int
-	Won   int
+	Dealt   int
+	Actions [RangeActionBucketCount]int
+	Won     int
 }
 
 // RankOrder is the canonical rank order for the 13x13 grid (A=0, 2=12)
@@ -105,32 +139,24 @@ func (c *HandRangeCell) ComboKey() string {
 }
 
 // Rates returns computed percentage rates
-func (c *HandRangeCell) FoldRate() float64 {
-	if c.Dealt == 0 {
+func (c *HandRangeCell) ActionRate(action RangeActionBucket) float64 {
+	if c == nil || c.Dealt == 0 {
 		return 0
 	}
-	return float64(c.Fold) / float64(c.Dealt) * 100
+	if action < 0 || action >= RangeActionBucketCount {
+		return 0
+	}
+	return float64(c.Actions[action]) / float64(c.Dealt) * 100
 }
 
-func (c *HandRangeCell) CallRate() float64 {
-	if c.Dealt == 0 {
+func (hcs *HandClassStats) ActionRate(action RangeActionBucket) float64 {
+	if hcs == nil || hcs.Hands == 0 {
 		return 0
 	}
-	return float64(c.Call) / float64(c.Dealt) * 100
-}
-
-func (c *HandRangeCell) BetRate() float64 {
-	if c.Dealt == 0 {
+	if action < 0 || action >= RangeActionBucketCount {
 		return 0
 	}
-	return float64(c.Bet) / float64(c.Dealt) * 100
-}
-
-func (c *HandRangeCell) RaiseRate() float64 {
-	if c.Dealt == 0 {
-		return 0
-	}
-	return float64(c.Raise) / float64(c.Dealt) * 100
+	return float64(hcs.Actions[action]) / float64(hcs.Hands) * 100
 }
 
 // Overall rate helpers for Stats

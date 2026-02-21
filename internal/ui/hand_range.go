@@ -3,12 +3,11 @@ package ui
 import (
 	"fmt"
 	"image/color"
-	"math"
+	"sort"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -16,91 +15,35 @@ import (
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
 )
 
-// rankDisplayName returns display label for a rank (10 -> T).
-func rankDisplayName(r string) string {
-	if r == "10" {
-		return "T"
-	}
-	return r
-}
-
-// comboDisplayName returns the short display name for a hand combo cell.
-// e.g. AKs, 77, T9o
-func comboDisplayName(cell *stats.HandRangeCell) string {
-	r1 := rankDisplayName(cell.Rank1)
-	r2 := rankDisplayName(cell.Rank2)
-	if cell.IsPair {
-		return r1 + r2
-	}
-	if cell.Suited {
-		return r1 + r2 + "s"
-	}
-	return r1 + r2 + "o"
-}
-
-// lerpColor linearly interpolates between two colors by factor t in [0,1].
-func lerpColor(a, b color.NRGBA, t float64) color.NRGBA {
-	t = math.Max(0, math.Min(1, t))
-	lerp := func(x, y uint8) uint8 {
-		return uint8(float64(x) + (float64(y)-float64(x))*t)
-	}
-	return color.NRGBA{
-		R: lerp(a.R, b.R),
-		G: lerp(a.G, b.G),
-		B: lerp(a.B, b.B),
-		A: 255,
-	}
-}
-
-// colorForRate returns a heat-map color for a given action rate (0-100).
-func colorForRate(rate float64) color.Color {
-	// Clamp
-	if rate < 0 {
-		rate = 0
-	}
-	if rate > 100 {
-		rate = 100
-	}
-
-	// Colour stops:
-	//   0%   -> very dark gray   {50, 50, 50}
-	//  10%   -> navy blue        {20, 30, 160}
-	//  25%   -> green            {30, 160, 40}
-	//  50%   -> yellow-green     {160, 200, 20}
-	//  75%   -> orange           {220, 120, 20}
-	// 100%   -> bright red       {220, 40, 40}
-	darkGray  := color.NRGBA{50, 50, 50, 255}
-	navy      := color.NRGBA{20, 30, 160, 255}
-	green     := color.NRGBA{30, 160, 40, 255}
-	yellowGrn := color.NRGBA{160, 200, 20, 255}
-	orange    := color.NRGBA{220, 120, 20, 255}
-	red       := color.NRGBA{220, 40, 40, 255}
-
-	switch {
-	case rate <= 10:
-		return lerpColor(darkGray, navy, rate/10)
-	case rate <= 25:
-		return lerpColor(navy, green, (rate-10)/15)
-	case rate <= 50:
-		return lerpColor(green, yellowGrn, (rate-25)/25)
-	case rate <= 75:
-		return lerpColor(yellowGrn, orange, (rate-50)/25)
-	default:
-		return lerpColor(orange, red, (rate-75)/25)
-	}
-}
-
-// actionFilter enumerates the available action filters.
-type actionFilter int
-
 const (
-	filterFold actionFilter = iota
-	filterCall
-	filterBet
-	filterRaise
+	rangeCellW   float32 = 46
+	rangeCellH   float32 = 33
+	rangeHeaderH float32 = 24
+	rangeHeaderW float32 = 24
 )
 
-// positionFilter maps select index to parser.Position (0 = All).
+type actionVisual struct {
+	Bucket stats.RangeActionBucket
+	Label  string
+	Color  color.NRGBA
+}
+
+type HandRangeViewState struct {
+	PositionLabel string
+	SelectedCombo string
+}
+
+var actionVisuals = []actionVisual{
+	{Bucket: stats.RangeActionCheck, Label: "Check", Color: color.NRGBA{R: 0x54, G: 0x6E, B: 0x7A, A: 0xFF}},
+	{Bucket: stats.RangeActionCall, Label: "Call", Color: color.NRGBA{R: 0x2E, G: 0x7D, B: 0x32, A: 0xFF}},
+	{Bucket: stats.RangeActionBetSmall, Label: "Bet <=1/3", Color: color.NRGBA{R: 0x03, G: 0xA9, B: 0xF4, A: 0xFF}},
+	{Bucket: stats.RangeActionBetHalf, Label: "Bet ~1/2", Color: color.NRGBA{R: 0x00, G: 0x96, B: 0x88, A: 0xFF}},
+	{Bucket: stats.RangeActionBetTwoThird, Label: "Bet ~2/3", Color: color.NRGBA{R: 0xFF, G: 0xB3, B: 0x00, A: 0xFF}},
+	{Bucket: stats.RangeActionBetPot, Label: "Bet ~Pot", Color: color.NRGBA{R: 0xF5, G: 0x7C, B: 0x00, A: 0xFF}},
+	{Bucket: stats.RangeActionBetOver, Label: "Overbet", Color: color.NRGBA{R: 0xD8, G: 0x1B, B: 0x60, A: 0xFF}},
+	{Bucket: stats.RangeActionFold, Label: "Fold", Color: color.NRGBA{R: 0x6D, G: 0x4C, B: 0x41, A: 0xFF}},
+}
+
 var positionFilters = []struct {
 	Label string
 	Pos   parser.Position
@@ -117,366 +60,391 @@ var positionFilters = []struct {
 	{Label: "BTN", Pos: parser.PosBTN},
 }
 
-// cellRate returns the action rate for a cell/filter/position combo.
-// When posIdx == 0 (All) overall cell stats are used; otherwise per-position.
-func cellRate(cell *stats.HandRangeCell, af actionFilter, posIdx int) float64 {
-	if cell == nil || cell.Dealt == 0 {
-		return -1 // sentinel: no data
-	}
+type tapArea struct {
+	widget.BaseWidget
+	onTap func()
+}
 
-	if posIdx == 0 {
-		// Overall
-		switch af {
-		case filterFold:
-			return cell.FoldRate()
-		case filterCall:
-			return cell.CallRate()
-		case filterBet:
-			return cell.BetRate()
-		case filterRaise:
-			return cell.RaiseRate()
+func newTapArea(onTap func()) *tapArea {
+	t := &tapArea{onTap: onTap}
+	t.ExtendBaseWidget(t)
+	return t
+}
+
+func (t *tapArea) Tapped(*fyne.PointEvent) {
+	if t.onTap != nil {
+		t.onTap()
+	}
+}
+
+func (t *tapArea) TappedSecondary(*fyne.PointEvent) {}
+
+func (t *tapArea) CreateRenderer() fyne.WidgetRenderer {
+	r := canvas.NewRectangle(color.Transparent)
+	return widget.NewSimpleRenderer(r)
+}
+
+func rankDisplayName(r string) string {
+	if r == "10" {
+		return "T"
+	}
+	return r
+}
+
+func comboDisplayName(cell *stats.HandRangeCell) string {
+	r1 := rankDisplayName(cell.Rank1)
+	r2 := rankDisplayName(cell.Rank2)
+	if cell.IsPair {
+		return r1 + r2
+	}
+	if cell.Suited {
+		return r1 + r2 + "s"
+	}
+	return r1 + r2 + "o"
+}
+
+func findCellByCombo(table *stats.HandRangeTable, combo string) *stats.HandRangeCell {
+	if table == nil || combo == "" {
+		return nil
+	}
+	for r := 0; r < 13; r++ {
+		for c := 0; c < 13; c++ {
+			cell := table.Cells[r][c]
+			if cell == nil {
+				continue
+			}
+			if comboDisplayName(cell) == combo {
+				return cell
+			}
 		}
-		return 0
 	}
-
-	// Per-position
-	pf := positionFilters[posIdx]
-	pc := cell.ByPosition[pf.Pos]
-	if pc == nil || pc.Dealt == 0 {
-		return -1
-	}
-	switch af {
-	case filterFold:
-		return float64(pc.Fold) / float64(pc.Dealt) * 100
-	case filterCall:
-		return float64(pc.Call) / float64(pc.Dealt) * 100
-	case filterBet:
-		return float64(pc.Bet) / float64(pc.Dealt) * 100
-	case filterRaise:
-		return float64(pc.Raise) / float64(pc.Dealt) * 100
-	}
-	return 0
+	return nil
 }
 
-// ── Legend ────────────────────────────────────────────────────────────────────
-
-// buildLegend creates a horizontal gradient legend strip with 0% – 100% labels.
-func buildLegend() fyne.CanvasObject {
-	const steps = 20
-	swatches := make([]fyne.CanvasObject, 0, steps+2)
-
-	label0 := widget.NewLabel("0%")
-	swatches = append(swatches, label0)
-
-	for i := 0; i < steps; i++ {
-		rate := float64(i) / float64(steps-1) * 100
-		rect := canvas.NewRectangle(colorForRate(rate))
-		rect.SetMinSize(fyne.NewSize(18, 18))
-		swatches = append(swatches, rect)
-	}
-
-	label100 := widget.NewLabel("100%")
-	swatches = append(swatches, label100)
-
-	legend := container.NewHBox(swatches...)
-	legendTitle := widget.NewLabelWithStyle("Color: action rate  ", fyne.TextAlignLeading, fyne.TextStyle{Italic: true})
-	return container.NewHBox(legendTitle, legend)
-}
-
-// ── Cell detail popup ─────────────────────────────────────────────────────────
-
-// showCellDetail opens a modal dialog with full per-position breakdown.
-func showCellDetail(cell *stats.HandRangeCell, win fyne.Window) {
+func actionCountsForCell(cell *stats.HandRangeCell, posIdx int) ([stats.RangeActionBucketCount]int, int) {
+	var counts [stats.RangeActionBucketCount]int
 	if cell == nil {
-		return
+		return counts, 0
 	}
-
-	name := comboDisplayName(cell)
-	title := widget.NewLabelWithStyle(name, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-
-	positions := []struct {
-		Label string
-		Pos   parser.Position
-	}{
-		{"SB", parser.PosSB},
-		{"BB", parser.PosBB},
-		{"UTG", parser.PosUTG},
-		{"UTG+1", parser.PosUTG1},
-		{"MP", parser.PosMP},
-		{"MP+1", parser.PosMP1},
-		{"CO", parser.PosCO},
-		{"BTN", parser.PosBTN},
+	if posIdx == 0 {
+		return cell.Actions, cell.Dealt
 	}
-
-	// Header row
-	headerCells := []fyne.CanvasObject{
-		widget.NewLabelWithStyle("Metric", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabelWithStyle("Overall", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+	pc := cell.ByPosition[positionFilters[posIdx].Pos]
+	if pc == nil {
+		return counts, 0
 	}
-	for _, p := range positions {
-		headerCells = append(headerCells,
-			widget.NewLabelWithStyle(p.Label, fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
-	}
-
-	cols := 2 + len(positions) // Metric + Overall + positions
-
-	pctStr := func(num, denom int) string {
-		if denom == 0 {
-			return "—"
-		}
-		return fmt.Sprintf("%.1f%%", float64(num)/float64(denom)*100)
-	}
-
-	intStr := func(n int) string {
-		if n == 0 {
-			return "0"
-		}
-		return fmt.Sprintf("%d", n)
-	}
-
-	addRow := func(metric string, overallNum, overallDenom int, posGetter func(*stats.HandRangePositionCell) (int, int)) []fyne.CanvasObject {
-		row := []fyne.CanvasObject{
-			widget.NewLabel(metric),
-			widget.NewLabel(pctStr(overallNum, overallDenom)),
-		}
-		for _, p := range positions {
-			pc := cell.ByPosition[p.Pos]
-			if pc == nil {
-				row = append(row, widget.NewLabel("—"))
-			} else {
-				n, d := posGetter(pc)
-				row = append(row, widget.NewLabel(pctStr(n, d)))
-			}
-		}
-		return row
-	}
-
-	addCountRow := func(metric string, overallVal int, posGetter func(*stats.HandRangePositionCell) int) []fyne.CanvasObject {
-		row := []fyne.CanvasObject{
-			widget.NewLabel(metric),
-			widget.NewLabel(intStr(overallVal)),
-		}
-		for _, p := range positions {
-			pc := cell.ByPosition[p.Pos]
-			if pc == nil {
-				row = append(row, widget.NewLabel("—"))
-			} else {
-				row = append(row, widget.NewLabel(intStr(posGetter(pc))))
-			}
-		}
-		return row
-	}
-
-	tableItems := make([]fyne.CanvasObject, 0)
-	tableItems = append(tableItems, headerCells...)
-
-	tableItems = append(tableItems, addCountRow("Dealt", cell.Dealt, func(pc *stats.HandRangePositionCell) int { return pc.Dealt })...)
-	tableItems = append(tableItems, addRow("Fold%", cell.Fold, cell.Dealt, func(pc *stats.HandRangePositionCell) (int, int) { return pc.Fold, pc.Dealt })...)
-	tableItems = append(tableItems, addRow("Call%", cell.Call, cell.Dealt, func(pc *stats.HandRangePositionCell) (int, int) { return pc.Call, pc.Dealt })...)
-	tableItems = append(tableItems, addRow("Bet%", cell.Bet, cell.Dealt, func(pc *stats.HandRangePositionCell) (int, int) { return pc.Bet, pc.Dealt })...)
-	tableItems = append(tableItems, addRow("Raise%", cell.Raise, cell.Dealt, func(pc *stats.HandRangePositionCell) (int, int) { return pc.Raise, pc.Dealt })...)
-	tableItems = append(tableItems, addCountRow("Won", cell.Won, func(pc *stats.HandRangePositionCell) int { return pc.Won })...)
-
-	tableGrid := container.NewGridWithColumns(cols, tableItems...)
-
-	body := container.NewVBox(
-		title,
-		canvas.NewLine(theme.ShadowColor()),
-		tableGrid,
-	)
-
-	dialog.ShowCustom(name+" details", "Close", body, win)
+	return pc.Actions, pc.Dealt
 }
 
-// ── Grid building ─────────────────────────────────────────────────────────────
+func aggregateActions(table *stats.HandRangeTable, posIdx int) ([stats.RangeActionBucketCount]int, int) {
+	var total [stats.RangeActionBucketCount]int
+	hands := 0
+	if table == nil {
+		return total, hands
+	}
+	if posIdx == 0 {
+		for i := 0; i < int(stats.RangeActionBucketCount); i++ {
+			total[i] = table.TotalActions[i]
+			hands += table.TotalActions[i]
+		}
+		return total, hands
+	}
 
-const (
-	cellW float32 = 52
-	cellH float32 = 40
-	headerSize float32 = 28
-)
+	for r := 0; r < 13; r++ {
+		for c := 0; c < 13; c++ {
+			cell := table.Cells[r][c]
+			if cell == nil {
+				continue
+			}
+			pc := cell.ByPosition[positionFilters[posIdx].Pos]
+			if pc == nil {
+				continue
+			}
+			for i := 0; i < int(stats.RangeActionBucketCount); i++ {
+				total[i] += pc.Actions[i]
+				hands += pc.Actions[i]
+			}
+		}
+	}
 
-// buildGridContent constructs the 14×14 container (header row+col + 13×13 cells).
-// It returns a plain container that can be placed inside a scroll.
-func buildGridContent(
-	s *stats.Stats,
-	af actionFilter,
-	posIdx int,
-	win fyne.Window,
-) fyne.CanvasObject {
+	return total, hands
+}
 
-	totalCols := 14 // 1 header col + 13 data cols
-	totalRows := 14 // 1 header row + 13 data rows
+func makeRangeCell(cell *stats.HandRangeCell, posIdx int, selectedCombo string, onSelect func(*stats.HandRangeCell)) fyne.CanvasObject {
+	bg := canvas.NewRectangle(color.NRGBA{R: 0x2B, G: 0x2B, B: 0x2B, A: 0xFF})
+	bg.SetMinSize(fyne.NewSize(rangeCellW, rangeCellH))
 
-	items := make([]fyne.CanvasObject, 0, totalCols*totalRows)
+	barsLayer := container.NewWithoutLayout()
+	barsLayer.Resize(fyne.NewSize(rangeCellW, rangeCellH))
 
-	rankLabels := stats.RankOrder // "A","K",...,"2"
+	counts, dealt := actionCountsForCell(cell, posIdx)
+	if dealt > 0 {
+		x := float32(0)
+		for _, av := range actionVisuals {
+			cnt := counts[av.Bucket]
+			if cnt <= 0 {
+				continue
+			}
+			w := rangeCellW * float32(cnt) / float32(dealt)
+			rect := canvas.NewRectangle(av.Color)
+			rect.Move(fyne.NewPos(x, 0))
+			rect.Resize(fyne.NewSize(w, rangeCellH))
+			barsLayer.Add(rect)
+			x += w
+		}
+	}
 
-	// ── Row 0: header row (corner + rank labels) ──────────────────────────────
-	// Corner cell (blank)
-	corner := canvas.NewRectangle(color.NRGBA{30, 30, 30, 255})
-	corner.SetMinSize(fyne.NewSize(headerSize, headerSize))
-	items = append(items, container.NewStack(corner))
+	border := canvas.NewRectangle(color.Transparent)
+	border.StrokeColor = color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF}
+	border.StrokeWidth = 1
+	border.SetMinSize(fyne.NewSize(rangeCellW, rangeCellH))
+
+	name := "---"
+	comboKey := ""
+	if cell != nil {
+		name = comboDisplayName(cell)
+		comboKey = name
+	}
+
+	nameText := canvas.NewText(name, color.White)
+	nameText.TextStyle = fyne.TextStyle{Bold: true}
+	nameText.TextSize = 9
+	nameText.Alignment = fyne.TextAlignCenter
+
+	textLayer := container.NewCenter(nameText)
+
+	grayMask := canvas.NewRectangle(color.Transparent)
+	if selectedCombo != "" && comboKey != "" && comboKey != selectedCombo {
+		grayMask.FillColor = color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xB5}
+	}
+	if selectedCombo != "" && comboKey == selectedCombo {
+		border.StrokeColor = color.NRGBA{R: 0xF5, G: 0xF5, B: 0xF5, A: 0xFF}
+		border.StrokeWidth = 2
+	}
+
+	var tap fyne.CanvasObject = canvas.NewRectangle(color.Transparent)
+	if cell != nil {
+		tap = newTapArea(func() { onSelect(cell) })
+	}
+
+	return container.NewStack(bg, barsLayer, grayMask, border, textLayer, tap)
+}
+
+func buildRangeGrid(s *stats.Stats, posIdx int, selectedCombo string, onSelect func(*stats.HandRangeCell)) fyne.CanvasObject {
+	rankLabels := stats.RankOrder
+	items := make([]fyne.CanvasObject, 0, 14*14)
+
+	corner := canvas.NewRectangle(color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF})
+	corner.SetMinSize(fyne.NewSize(rangeHeaderW, rangeHeaderH))
+	items = append(items, corner)
 
 	for col := 0; col < 13; col++ {
-		lbl := canvas.NewText(rankDisplayName(rankLabels[col]), color.White)
-		lbl.TextStyle = fyne.TextStyle{Bold: true}
-		lbl.TextSize = 11
-		lbl.Alignment = fyne.TextAlignCenter
-		bg := canvas.NewRectangle(color.NRGBA{30, 30, 30, 255})
-		bg.SetMinSize(fyne.NewSize(cellW, headerSize))
-		items = append(items, container.NewStack(bg, container.NewCenter(lbl)))
+		bg := canvas.NewRectangle(color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF})
+		bg.SetMinSize(fyne.NewSize(rangeCellW, rangeHeaderH))
+		tx := canvas.NewText(rankDisplayName(rankLabels[col]), color.White)
+		tx.TextStyle = fyne.TextStyle{Bold: true}
+		tx.TextSize = 11
+		tx.Alignment = fyne.TextAlignCenter
+		items = append(items, container.NewStack(bg, container.NewCenter(tx)))
 	}
 
-	// ── Rows 1–13: header label + 13 data cells ───────────────────────────────
 	for row := 0; row < 13; row++ {
-		// Left header cell
-		lbl := canvas.NewText(rankDisplayName(rankLabels[row]), color.White)
-		lbl.TextStyle = fyne.TextStyle{Bold: true}
-		lbl.TextSize = 11
-		lbl.Alignment = fyne.TextAlignCenter
-		hdrBg := canvas.NewRectangle(color.NRGBA{30, 30, 30, 255})
-		hdrBg.SetMinSize(fyne.NewSize(headerSize, cellH))
-		items = append(items, container.NewStack(hdrBg, container.NewCenter(lbl)))
+		bg := canvas.NewRectangle(color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF})
+		bg.SetMinSize(fyne.NewSize(rangeHeaderW, rangeCellH))
+		tx := canvas.NewText(rankDisplayName(rankLabels[row]), color.White)
+		tx.TextStyle = fyne.TextStyle{Bold: true}
+		tx.TextSize = 11
+		tx.Alignment = fyne.TextAlignCenter
+		items = append(items, container.NewStack(bg, container.NewCenter(tx)))
 
-		// 13 data cells
 		for col := 0; col < 13; col++ {
 			var cell *stats.HandRangeCell
 			if s != nil && s.HandRange != nil {
 				cell = s.HandRange.Cells[row][col]
 			}
-
-			items = append(items, makeHandCell(row, col, cell, af, posIdx, win))
+			items = append(items, makeRangeCell(cell, posIdx, selectedCombo, onSelect))
 		}
 	}
 
-	return container.NewGridWithColumns(totalCols, items...)
+	return container.NewGridWithColumns(14, items...)
 }
 
-// makeHandCell builds a single hand range cell widget.
-func makeHandCell(
-	row, col int,
-	cell *stats.HandRangeCell,
-	af actionFilter,
-	posIdx int,
-	win fyne.Window,
-) fyne.CanvasObject {
-
-	// Determine combo name
-	var comboName string
-	var bgColor color.Color
-	var pctStr string
-	var hasData bool
-
-	if cell != nil && cell.Dealt > 0 {
-		comboName = comboDisplayName(cell)
-		rate := cellRate(cell, af, posIdx)
-		if rate < 0 {
-			// No data for selected position
-			bgColor = color.NRGBA{35, 35, 35, 255}
-			pctStr = "—"
-		} else {
-			bgColor = colorForRate(rate)
-			pctStr = fmt.Sprintf("%.1f%%", rate)
-			hasData = true
+func buildActionSummaryRows(counts [stats.RangeActionBucketCount]int, total int) fyne.CanvasObject {
+	rows := make([]fyne.CanvasObject, 0, len(actionVisuals)+1)
+	for _, av := range actionVisuals {
+		rate := 0.0
+		if total > 0 {
+			rate = float64(counts[av.Bucket]) / float64(total) * 100
 		}
-	} else if cell != nil {
-		// Cell exists but no hands dealt with it
-		comboName = comboDisplayName(cell)
-		bgColor = color.NRGBA{35, 35, 35, 255}
-		pctStr = "—"
-	} else {
-		// Nil cell (shouldn't happen after init, but guard anyway)
-		comboName = "---"
-		bgColor = color.NRGBA{35, 35, 35, 255}
-		pctStr = ""
+		swatch := canvas.NewRectangle(av.Color)
+		swatch.SetMinSize(fyne.NewSize(12, 12))
+		rows = append(rows, container.NewHBox(
+			swatch,
+			widget.NewLabel(fmt.Sprintf("%-10s", av.Label)),
+			widget.NewLabel(fmt.Sprintf("%5.1f%%", rate)),
+			widget.NewLabel(fmt.Sprintf("(%d)", counts[av.Bucket])),
+		))
+	}
+	rows = append(rows, widget.NewLabel(fmt.Sprintf("Samples: %d", total)))
+	return container.NewVBox(rows...)
+}
+
+func buildClassSummaryByMap(byClass map[string]*stats.HandClassStats) fyne.CanvasObject {
+	if len(byClass) == 0 {
+		return widget.NewLabel("No class-level data yet.")
 	}
 
-	// Determine text brightness based on background
-	textColor := color.NRGBA{220, 220, 220, 255}
-	if hasData {
-		textColor = color.NRGBA{255, 255, 255, 255}
+	keys := make([]string, 0, len(byClass))
+	for k := range byClass {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	rows := make([]fyne.CanvasObject, 0, len(keys))
+	for _, k := range keys {
+		v := byClass[k]
+		if v == nil || v.Hands == 0 {
+			continue
+		}
+		top := stats.RangeActionCheck
+		for i := stats.RangeActionCheck; i < stats.RangeActionBucketCount; i++ {
+			if v.Actions[i] > v.Actions[top] {
+				top = i
+			}
+		}
+		rows = append(rows, widget.NewLabel(fmt.Sprintf("%s  |  %s %.1f%%  | n=%d",
+			k,
+			stats.RangeActionLabels[top],
+			v.ActionRate(top),
+			v.Hands,
+		)))
 	}
 
-	rect := canvas.NewRectangle(bgColor)
-	rect.SetMinSize(fyne.NewSize(cellW, cellH))
+	if len(rows) == 0 {
+		return widget.NewLabel("No class-level data yet.")
+	}
 
-	nameText := canvas.NewText(comboName, textColor)
-	nameText.TextSize = 10
-	nameText.TextStyle = fyne.TextStyle{Bold: true}
-	nameText.Alignment = fyne.TextAlignCenter
+	return container.NewVBox(rows...)
+}
 
-	pctText := canvas.NewText(pctStr, color.NRGBA{220, 220, 220, 255})
-	pctText.TextSize = 8
-	pctText.Alignment = fyne.TextAlignCenter
+func buildRightPanel(table *stats.HandRangeTable, posIdx int, selected *stats.HandRangeCell) fyne.CanvasObject {
+	if selected != nil {
+		counts, total := actionCountsForCell(selected, posIdx)
+		title := widget.NewLabelWithStyle("Selected Combo Action Frequency", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		comboName := widget.NewLabelWithStyle(comboDisplayName(selected), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
-	textStack := container.NewVBox(
-		container.NewCenter(nameText),
-		container.NewCenter(pctText),
+		if total == 0 {
+			noData := widget.NewLabel("No records for this combo in the selected position filter.")
+			noData.Wrapping = fyne.TextWrapWord
+			return container.NewVBox(
+				title,
+				comboName,
+				widget.NewSeparator(),
+				noData,
+			)
+		}
+
+		comboBox := buildActionSummaryRows(counts, total)
+		comboSection := container.NewVBox(title, comboName, comboBox)
+		classAcc := widget.NewAccordion(
+			widget.NewAccordionItem("Hand Class Action Frequency (Selected Combo, All Streets)", buildClassSummaryByMap(selected.ByHandClass)),
+		)
+		return container.NewVBox(
+			comboSection,
+			widget.NewSeparator(),
+			classAcc,
+		)
+	}
+
+	allCounts, allTotal := aggregateActions(table, posIdx)
+	globalTitle := widget.NewLabelWithStyle("Preflop Range Action Frequency", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	globalBox := buildActionSummaryRows(allCounts, allTotal)
+	comboTitle := widget.NewLabelWithStyle("Selected Combo", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	comboName := widget.NewLabel("None")
+	comboStats := widget.NewLabel("Click a cell in the 13x13 grid.")
+
+	classAcc := widget.NewAccordion(
+		widget.NewAccordionItem("Hand Class Action Frequency (All Streets)", buildClassSummaryByMap(table.ByHandClass)),
 	)
 
-	// Invisible button for tap handling (captures the cell in closure)
-	capturedCell := cell
-	var btn fyne.CanvasObject
-	if capturedCell != nil && capturedCell.Dealt > 0 && win != nil {
-		b := widget.NewButton("", func() {
-			showCellDetail(capturedCell, win)
-		})
-		b.Importance = widget.LowImportance
-		btn = b
-	} else {
-		btn = canvas.NewRectangle(color.Transparent)
-	}
-
-	return container.NewStack(rect, textStack, btn)
+	return container.NewVBox(
+		globalTitle,
+		globalBox,
+		widget.NewSeparator(),
+		comboTitle,
+		comboName,
+		comboStats,
+		widget.NewSeparator(),
+		classAcc,
+	)
 }
 
-// ── NewHandRangeTab ───────────────────────────────────────────────────────────
+func buildActionLegend() fyne.CanvasObject {
+	items := make([]fyne.CanvasObject, 0, len(actionVisuals))
+	for _, av := range actionVisuals {
+		swatch := canvas.NewRectangle(av.Color)
+		swatch.SetMinSize(fyne.NewSize(12, 12))
+		items = append(items, container.NewHBox(swatch, widget.NewLabel(av.Label)))
+	}
+	return container.NewGridWithColumns(4, items...)
+}
 
-// NewHandRangeTab returns the "Hand Range" tab canvas object.
-// win is needed to anchor modal dialogs; pass nil to disable popups.
-func NewHandRangeTab(s *stats.Stats, win fyne.Window) fyne.CanvasObject {
-	// Empty state
+// NewHandRangeTab renders a GTO-style mixed-strategy range view.
+func NewHandRangeTab(s *stats.Stats, _ fyne.Window, state *HandRangeViewState) fyne.CanvasObject {
 	if s == nil || s.HandRange == nil {
 		msg := widget.NewLabel("No hand data yet.")
 		msg.Alignment = fyne.TextAlignCenter
 		return container.NewCenter(msg)
 	}
-
-	// ── State ────────────────────────────────────────────────────────────────
-	currentAction := filterCall
-	currentPosIdx := 0 // 0 = All
-
-	// ── Grid container (mutable) ──────────────────────────────────────────────
-	gridWrap := container.NewStack()
-
-	rebuildGrid := func() {
-		content := buildGridContent(s, currentAction, currentPosIdx, win)
-		gridWrap.Objects = []fyne.CanvasObject{content}
-		gridWrap.Refresh()
+	if state == nil {
+		state = &HandRangeViewState{}
 	}
 
-	// Initial build
-	rebuildGrid()
-
-	// ── Filter: action ────────────────────────────────────────────────────────
-	actionOptions := []string{"Fold", "Call", "Bet", "Raise"}
-	actionSelect := widget.NewSelect(actionOptions, func(val string) {
-		switch val {
-		case "Fold":
-			currentAction = filterFold
-		case "Call":
-			currentAction = filterCall
-		case "Bet":
-			currentAction = filterBet
-		case "Raise":
-			currentAction = filterRaise
+	currentPosIdx := 0
+	if state.PositionLabel != "" {
+		for i, p := range positionFilters {
+			if p.Label == state.PositionLabel {
+				currentPosIdx = i
+				break
+			}
 		}
-		rebuildGrid()
-	})
-	actionSelect.SetSelected("Call")
+	}
+	selected := findCellByCombo(s.HandRange, state.SelectedCombo)
 
-	// ── Filter: position ──────────────────────────────────────────────────────
+	leftWrap := container.NewMax()
+	rightWrap := container.NewMax()
+	clearSelectionButton := widget.NewButton("Show All Range", nil)
+
+	var rebuild func()
+	rebuild = func() {
+		selectedCombo := ""
+		if selected != nil {
+			selectedCombo = comboDisplayName(selected)
+		}
+		grid := buildRangeGrid(s, currentPosIdx, selectedCombo, func(cell *stats.HandRangeCell) {
+			selected = cell
+			state.SelectedCombo = comboDisplayName(cell)
+			rebuild()
+		})
+		leftWrap.Objects = []fyne.CanvasObject{container.NewScroll(grid)}
+		leftWrap.Refresh()
+
+		rightWrap.Objects = []fyne.CanvasObject{container.NewPadded(buildRightPanel(s.HandRange, currentPosIdx, selected))}
+		rightWrap.Refresh()
+
+		if selected == nil {
+			clearSelectionButton.Disable()
+		} else {
+			clearSelectionButton.Enable()
+		}
+	}
+
+	clearSelectionButton.OnTapped = func() {
+		selected = nil
+		state.SelectedCombo = ""
+		rebuild()
+	}
+
 	posOptions := make([]string, len(positionFilters))
 	for i, p := range positionFilters {
 		posOptions[i] = p.Label
@@ -485,36 +453,42 @@ func NewHandRangeTab(s *stats.Stats, win fyne.Window) fyne.CanvasObject {
 		for i, p := range positionFilters {
 			if p.Label == val {
 				currentPosIdx = i
+				state.PositionLabel = p.Label
 				break
 			}
 		}
-		rebuildGrid()
+		rebuild()
 	})
-	posSelect.SetSelected("All")
+	if state.PositionLabel == "" {
+		state.PositionLabel = "All"
+	}
+	posSelect.SetSelected(state.PositionLabel)
 
-	colorModeLabel := widget.NewLabelWithStyle("Color = action rate (darker=lower, red=higher)", fyne.TextAlignLeading, fyne.TextStyle{Italic: true})
-
-	filterPanel := container.NewHBox(
-		widget.NewLabel("Action:"),
-		actionSelect,
-		widget.NewSeparator(),
-		widget.NewLabel("Position:"),
-		posSelect,
-		widget.NewSeparator(),
-		colorModeLabel,
+	legend := buildActionLegend()
+	positionRow := container.NewHBox(
+		container.NewCenter(widget.NewLabel("Position:")),
+		container.NewCenter(posSelect),
 	)
+	topBarContent := container.NewHBox(
+		positionRow,
+		widget.NewSeparator(),
+		widget.NewLabelWithStyle("Action Palette", fyne.TextAlignLeading, fyne.TextStyle{Italic: true}),
+		legend,
+		widget.NewSeparator(),
+		container.NewCenter(clearSelectionButton),
+	)
+	topBar := container.NewCenter(topBarContent)
 
-	// ── Legend ────────────────────────────────────────────────────────────────
-	legend := buildLegend()
+	split := container.NewHSplit(leftWrap, container.NewScroll(rightWrap))
+	split.Offset = 0.66
 
-	// ── Final layout ──────────────────────────────────────────────────────────
-	scrollable := container.NewScroll(gridWrap)
+	rebuild()
 
 	return container.NewBorder(
-		container.NewVBox(filterPanel, canvas.NewLine(theme.ShadowColor())),
-		container.NewVBox(canvas.NewLine(theme.ShadowColor()), legend),
+		container.NewVBox(topBar, canvas.NewLine(theme.ShadowColor())),
 		nil,
 		nil,
-		scrollable,
+		nil,
+		split,
 	)
 }

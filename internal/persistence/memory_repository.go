@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -40,7 +39,7 @@ func (r *MemoryRepository) UpsertHands(_ context.Context, hands []PersistedHand)
 		}
 		uid := ph.Source.HandUID
 		if uid == "" {
-			uid = defaultHandUID(ph.Hand, ph.Source)
+			uid = GenerateHandUID(ph.Hand, ph.Source)
 		}
 		if _, ok := r.hands[uid]; ok {
 			res.Updated++
@@ -115,10 +114,6 @@ func (r *MemoryRepository) SaveCursor(_ context.Context, c ImportCursor) error {
 	}
 	r.cursors[c.SourcePath] = c
 	return nil
-}
-
-func defaultHandUID(h *parser.Hand, src HandSourceRef) string {
-	return fmt.Sprintf("%s:%d:%d:%d:%s", src.SourcePath, h.ID, h.StartTime.UnixNano(), h.EndTime.UnixNano(), h.WinType)
 }
 
 func cloneHand(h *parser.Hand) *parser.Hand {

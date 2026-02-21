@@ -24,7 +24,15 @@ func (c *Calculator) Calculate(hands []*parser.Hand, localSeat int) *Stats {
 			continue
 		}
 
-		localInfo, ok := h.Players[localSeat]
+		handSeat := localSeat
+		if h.LocalPlayerSeat >= 0 {
+			handSeat = h.LocalPlayerSeat
+		}
+		if handSeat < 0 {
+			continue
+		}
+
+		localInfo, ok := h.Players[handSeat]
 		if !ok {
 			// We might not be in this hand
 			continue
@@ -37,7 +45,7 @@ func (c *Calculator) Calculate(hands []*parser.Hand, localSeat int) *Stats {
 		ps.Hands++
 
 		// Financial
-		invested := c.investedAmount(h, localSeat)
+		invested := c.investedAmount(h, handSeat)
 		ps.Invested += invested
 		ps.PotWon += localInfo.PotWon
 		s.TotalPotWon += localInfo.PotWon
@@ -91,7 +99,7 @@ func (c *Calculator) Calculate(hands []*parser.Hand, localSeat int) *Stats {
 
 		// Hand range table update
 		if len(localInfo.HoleCards) == 2 {
-			c.updateHandRange(s.HandRange, localInfo, pos)
+			c.updateHandRange(s.HandRange, h, localInfo, pos)
 		}
 	}
 
@@ -122,7 +130,7 @@ func (c *Calculator) investedAmount(h *parser.Hand, seat int) int {
 }
 
 // updateHandRange updates the hand range table for a hand
-func (c *Calculator) updateHandRange(table *HandRangeTable, pi *parser.PlayerHandInfo, pos parser.Position) {
+func (c *Calculator) updateHandRange(table *HandRangeTable, h *parser.Hand, pi *parser.PlayerHandInfo, pos parser.Position) {
 	card1 := pi.HoleCards[0]
 	card2 := pi.HoleCards[1]
 
@@ -161,28 +169,48 @@ func (c *Calculator) updateHandRange(table *HandRangeTable, pi *parser.PlayerHan
 	cell := table.Cells[r][c2]
 	if cell == nil {
 		cell = &HandRangeCell{
-			Rank1:      RankOrder[row],
-			Rank2:      RankOrder[col],
-			Suited:     suited,
-			IsPair:     isPair,
-			ByPosition: make(map[parser.Position]*HandRangePositionCell),
+			Rank1:       RankOrder[row],
+			Rank2:       RankOrder[col],
+			Suited:      suited,
+			IsPair:      isPair,
+			ByPosition:  make(map[parser.Position]*HandRangePositionCell),
+			ByHandClass: make(map[string]*HandClassStats),
 		}
 		table.Cells[r][c2] = cell
 	}
 
 	cell.Dealt++
-	if action, ok := preflopActionSummary(pi); ok {
-		switch action {
-		case parser.ActionFold:
-			cell.Fold++
-		case parser.ActionCall:
-			cell.Call++
-		case parser.ActionBet:
-			cell.Bet++
-		case parser.ActionRaise:
-			cell.Raise++
+	if pfAction, ok := preflopRangeActionSummary(h, pi); ok {
+		cell.Actions[pfAction]++
+		table.TotalActions[pfAction]++
+	}
+
+	classes := handClasses(h, pi)
+	if len(classes) > 0 {
+		overallAction, overallOK := overallActionSummary(h, pi)
+		for _, className := range classes {
+			cellClass := cell.ByHandClass[className]
+			if cellClass == nil {
+				cellClass = &HandClassStats{}
+				cell.ByHandClass[className] = cellClass
+			}
+			cellClass.Hands++
+			if overallOK {
+				cellClass.Actions[overallAction]++
+			}
+
+			hcs := table.ByHandClass[className]
+			if hcs == nil {
+				hcs = &HandClassStats{}
+				table.ByHandClass[className] = hcs
+			}
+			hcs.Hands++
+			if overallOK {
+				hcs.Actions[overallAction]++
+			}
 		}
 	}
+
 	if pi.Won {
 		cell.Won++
 	}
@@ -194,29 +222,21 @@ func (c *Calculator) updateHandRange(table *HandRangeTable, pi *parser.PlayerHan
 		cell.ByPosition[pos] = ppc
 	}
 	ppc.Dealt++
-	if action, ok := preflopActionSummary(pi); ok {
-		switch action {
-		case parser.ActionFold:
-			ppc.Fold++
-		case parser.ActionCall:
-			ppc.Call++
-		case parser.ActionBet:
-			ppc.Bet++
-		case parser.ActionRaise:
-			ppc.Raise++
-		}
+	if pfAction, ok := preflopRangeActionSummary(h, pi); ok {
+		ppc.Actions[pfAction]++
 	}
 	if pi.Won {
 		ppc.Won++
 	}
 }
 
-func preflopActionSummary(pi *parser.PlayerHandInfo) (parser.ActionType, bool) {
+func preflopRangeActionSummary(h *parser.Hand, pi *parser.PlayerHandInfo) (RangeActionBucket, bool) {
 	if pi == nil {
-		return parser.ActionUnknown, false
+		return RangeActionCheck, false
 	}
 
-	last := parser.ActionUnknown
+	lastAction := parser.ActionUnknown
+	lastAmount := 0
 	for _, act := range pi.Actions {
 		if act.Street != parser.StreetPreFlop {
 			continue
@@ -224,33 +244,136 @@ func preflopActionSummary(pi *parser.PlayerHandInfo) (parser.ActionType, bool) {
 		switch act.Action {
 		case parser.ActionBlindSB, parser.ActionBlindBB:
 			continue
-		case parser.ActionCheck, parser.ActionCall:
-			last = parser.ActionCall
-		case parser.ActionBet:
-			last = parser.ActionBet
-		case parser.ActionRaise:
-			last = parser.ActionRaise
-		case parser.ActionFold:
-			last = parser.ActionFold
-		case parser.ActionAllIn:
-			last = parser.ActionRaise
+		case parser.ActionCheck, parser.ActionCall, parser.ActionBet, parser.ActionRaise, parser.ActionFold, parser.ActionAllIn:
+			lastAction = act.Action
+			lastAmount = act.Amount
 		}
 	}
 
-	if last == parser.ActionUnknown {
+	if lastAction == parser.ActionUnknown {
 		if pi.FoldedPF {
-			return parser.ActionFold, true
+			return RangeActionFold, true
 		}
 		if pi.PFR || pi.ThreeBet {
-			return parser.ActionRaise, true
+			return RangeActionBetHalf, true
 		}
 		if pi.VPIP {
-			return parser.ActionCall, true
+			return RangeActionCall, true
 		}
-		return parser.ActionUnknown, false
+		return RangeActionCheck, false
 	}
 
-	return last, true
+	switch lastAction {
+	case parser.ActionFold:
+		return RangeActionFold, true
+	case parser.ActionCheck:
+		return RangeActionCheck, true
+	case parser.ActionCall:
+		return RangeActionCall, true
+	case parser.ActionBet, parser.ActionRaise, parser.ActionAllIn:
+		return bucketByBBMultiple(lastAmount, bbAmountFromHand(h)), true
+	}
+
+	return RangeActionCheck, false
+}
+
+func overallActionSummary(h *parser.Hand, pi *parser.PlayerHandInfo) (RangeActionBucket, bool) {
+	if pi == nil {
+		return RangeActionCheck, false
+	}
+
+	lastAction := parser.ActionUnknown
+	lastAmount := 0
+	for _, act := range pi.Actions {
+		switch act.Action {
+		case parser.ActionBlindSB, parser.ActionBlindBB:
+			continue
+		case parser.ActionCheck, parser.ActionCall, parser.ActionBet, parser.ActionRaise, parser.ActionFold, parser.ActionAllIn:
+			lastAction = act.Action
+			lastAmount = act.Amount
+		}
+	}
+
+	if lastAction == parser.ActionUnknown {
+		return RangeActionCheck, false
+	}
+
+	switch lastAction {
+	case parser.ActionFold:
+		return RangeActionFold, true
+	case parser.ActionCheck:
+		return RangeActionCheck, true
+	case parser.ActionCall:
+		return RangeActionCall, true
+	case parser.ActionBet, parser.ActionRaise, parser.ActionAllIn:
+		return bucketByPotFraction(lastAmount, h), true
+	default:
+		return RangeActionCheck, false
+	}
+}
+
+func bbAmountFromHand(h *parser.Hand) int {
+	if h == nil || h.BBSeat < 0 {
+		return 0
+	}
+	bb := h.Players[h.BBSeat]
+	if bb == nil {
+		return 0
+	}
+	for _, act := range bb.Actions {
+		if act.Action == parser.ActionBlindBB && act.Amount > 0 {
+			return act.Amount
+		}
+	}
+	return 0
+}
+
+func bucketByBBMultiple(amount, bb int) RangeActionBucket {
+	if amount <= 0 {
+		return RangeActionCheck
+	}
+	if bb <= 0 {
+		bb = 20
+	}
+	multiple := float64(amount) / float64(bb)
+	switch {
+	case multiple <= 2.5:
+		return RangeActionBetSmall
+	case multiple <= 4.0:
+		return RangeActionBetHalf
+	case multiple <= 6.0:
+		return RangeActionBetTwoThird
+	case multiple <= 10.0:
+		return RangeActionBetPot
+	default:
+		return RangeActionBetOver
+	}
+}
+
+func bucketByPotFraction(amount int, h *parser.Hand) RangeActionBucket {
+	if amount <= 0 {
+		return RangeActionCheck
+	}
+	pot := 0
+	if h != nil {
+		pot = h.TotalPot
+	}
+	if pot <= 0 {
+		return RangeActionBetHalf
+	}
+	ratio := float64(amount) / float64(pot)
+	switch {
+	case ratio <= 0.38:
+		return RangeActionBetSmall
+	case ratio <= 0.58:
+		return RangeActionBetHalf
+	case ratio <= 0.78:
+		return RangeActionBetTwoThird
+	case ratio <= 1.15:
+		return RangeActionBetPot
+	default:
+		return RangeActionBetOver
+	}
 }
 
 // newHandRangeTable initializes the 13x13 hand range table with empty cells
@@ -275,14 +398,16 @@ func newHandRangeTable() *HandRangeTable {
 			_ = r1
 			_ = r2
 			t.Cells[i][j] = &HandRangeCell{
-				Rank1:      rank1,
-				Rank2:      rank2,
-				Suited:     suited && !isPair,
-				IsPair:     isPair,
-				ByPosition: make(map[parser.Position]*HandRangePositionCell),
+				Rank1:       rank1,
+				Rank2:       rank2,
+				Suited:      suited && !isPair,
+				IsPair:      isPair,
+				ByPosition:  make(map[parser.Position]*HandRangePositionCell),
+				ByHandClass: make(map[string]*HandClassStats),
 			}
 		}
 	}
+	t.ByHandClass = make(map[string]*HandClassStats)
 	return t
 }
 

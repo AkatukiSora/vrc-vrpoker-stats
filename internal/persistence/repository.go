@@ -2,6 +2,9 @@ package persistence
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
@@ -58,4 +61,20 @@ type CursorRepository interface {
 type ImportRepository interface {
 	HandRepository
 	CursorRepository
+}
+
+func GenerateHandUID(h *parser.Hand, src HandSourceRef) string {
+	payload := fmt.Sprintf(
+		"%s|%d|%d|%d|%d|%d|%d|%s",
+		src.SourcePath,
+		src.StartByte,
+		src.EndByte,
+		src.StartLine,
+		src.EndLine,
+		h.ID,
+		h.StartTime.UnixNano(),
+		h.WinType,
+	)
+	s := sha256.Sum256([]byte(payload))
+	return hex.EncodeToString(s[:])
 }
