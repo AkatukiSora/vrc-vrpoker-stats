@@ -24,3 +24,9 @@ coverage.html
 
 # mise local overrides
 .mise.local.toml
+
+# VRC Logfiles
+output_*
+
+# DB file
+vrpoker-stats.db
