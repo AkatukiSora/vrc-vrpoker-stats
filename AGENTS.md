@@ -1,170 +1,161 @@
 # AGENTS.md
 
-This file is guidance for coding agents working in this repository.
-It documents build/test/lint commands and project-specific coding conventions.
+Guidance for coding agents operating in this repository.
+Scope: build/test commands, workflow expectations, and code style rules.
 
-## Project Snapshot
+## Project Overview
 
 - Language: Go
 - Module: `github.com/AkatukiSora/vrc-vrpoker-ststs`
-- GUI stack: Fyne (`fyne.io/fyne/v2`)
-- Runtime focus: Linux/Wayland build for desktop app
-- Current architecture direction: parser/import pipeline decoupled from persistence
+- UI framework: Fyne (`fyne.io/fyne/v2`)
+- Main domain: VRChat poker log parsing, stats aggregation, and desktop visualization
+- Architecture trend: parser/import pipeline + repository boundary (memory/SQLite)
 
-## Tooling and Environment
+## Environment and Tooling
 
-- Go version in `go.mod`: `1.25.0`
-- Preferred tool manager: `mise` (`mise.toml` specifies `go = "1.26.0"`)
+- `go.mod` Go version: `1.25.0`
+- Local toolchain via `mise.toml`: `go = "1.25.0"`
 - Build tags: `wayland`
-- `CGO_ENABLED=1` is expected for UI builds
+- Expected env for build: `CGO_ENABLED=1`
+- Task runner source of truth: `mise` tasks
 
-## Canonical Commands
+## Build, Run, Lint, Test Commands
 
-Use `mise` tasks when possible; they are the source of truth for CI-local parity.
+Use these first (from `mise.toml`).
 
 ### Setup
 
-- Install toolchain via mise:
-  - `mise install`
+- Install tools: `mise install`
+- Optional project setup: `mise run setup`
 
-### Build
+### Build and Run
 
-- Standard build (Wayland):
-  - `mise run build`
-- Debug build (no strip):
-  - `mise run build-debug`
-- Direct equivalent:
-  - `go build -tags wayland -ldflags "-s -w" -o vrpoker-stats .`
+- Release-style build: `mise run build`
+- Debug build: `mise run build-debug`
+- Build + run: `mise run run`
+- Direct build equivalent:
+  - `go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o "$BINARY" .`
 
-### Run
+### Lint
 
-- Build + run:
-  - `mise run run`
-- Launcher script:
-  - `./run.sh`
-
-### Lint / Vet
-
-- Preferred:
-  - `mise run lint`
-- Direct equivalent:
-  - `go vet -tags "wayland" ./...`
+- Preferred: `mise run lint`
+- Direct equivalent: `go vet -tags wayland ./...`
 
 ### Tests
 
-- Fast unit test set (CI-style, excludes real-log integration test):
-  - `mise run test`
-- All parser/stats/watcher tests (includes `TestRealLog`, which may skip if file missing):
-  - `mise run test-all`
-- Parser-only tests:
-  - `mise run test-parser`
-- Whole repo smoke test:
-  - `go test ./...`
+- Fast suite (parser/stats/watcher): `mise run test`
+- Full parser/stats/watcher suite: `mise run test-all`
+- Parser-only: `mise run test-parser`
+- Whole repo smoke test: `go test ./...`
 
-### Running a Single Test (important)
+### Single Test Execution (important)
 
-- Single test in parser package:
+- Exact test in package:
   - `go test -v -run '^TestParseSimpleHand$' ./internal/parser/...`
-- Single test by exact name in any package:
+- Any package exact match:
   - `go test -v -run '^TestName$' ./path/to/pkg`
-- Multiple tests by regex:
+- Regex subset:
   - `go test -v -run 'TestParse(Card|ShowdownHand)' ./internal/parser/...`
-- Run one test repeatedly (flake check):
+- Flake check loop:
   - `go test -count=20 -run '^TestParseShowdownHand$' ./internal/parser/...`
 
-### Module hygiene
+### Module Hygiene
 
-- Tidy modules:
-  - `mise run tidy`
-- CI expects `go mod tidy` to produce no diff in `go.mod`/`go.sum`.
+- Tidy modules: `mise run tidy`
+- CI expects no diff in `go.mod`/`go.sum` after tidy.
+- `go mod tidy` is also enforced by pre-commit hooks (lefthook).
+- If pre-commit updates `go.mod`/`go.sum`, include those updates in the same commit.
 
-## CI Notes
+## Repository Rule Files
 
-- CI tests parser/stats/watcher separately from UI-heavy build concerns.
-- Build job installs Wayland/GL dev packages before `mise run build`.
-- Do not assume headless CI can run GUI integration tests.
-
-## Repository Rules Discovery
-
-Agent checked for additional instruction files:
+Checked in this repository:
 
 - `.cursor/rules/`: not found
 - `.cursorrules`: not found
 - `.github/copilot-instructions.md`: not found
 
-If these are added later, update this file and follow them as higher-priority repository policy.
+If these files appear later, treat them as higher-priority local policy.
 
-## Code Organization Conventions
+## Package Responsibilities
 
-- `internal/parser`: log parsing and poker-hand reconstruction
-- `internal/stats`: aggregate/statistical calculations
-- `internal/watcher`: file-change monitoring and tail-like reading
-- `internal/application`: orchestration service layer
-- `internal/persistence`: repository interfaces and implementations
-- `internal/ui`: Fyne UI only (presentation + user interactions)
+- `internal/parser`: parse VRChat logs and construct hand/player/action data
+- `internal/stats`: aggregate metrics and hand-range summaries
+- `internal/watcher`: tail and monitor log files
+- `internal/application`: import orchestration and snapshot service
+- `internal/persistence`: repository interfaces + memory/SQLite backends
+- `internal/ui`: Fyne tabs, settings, and visual components
 
-## Style Guidelines
+## Coding Style and Conventions
 
-### Formatting and imports
+### Formatting and Imports
 
-- Always run `gofmt` on changed Go files.
-- Keep imports grouped by standard library, third-party, internal packages.
-- Avoid unused imports/variables; keep `go test` and `go vet` clean.
+- Always run `gofmt` on modified Go files.
+- Keep imports standard-grouped: stdlib, third-party, internal.
+- Do not leave unused imports, vars, or dead code.
 
 ### Naming
 
-- Exported identifiers: `PascalCase` with domain-friendly names (`Hand`, `ParseResult`).
-- Unexported identifiers: `camelCase` (`parseCard`, `streetBetAmount`).
-- Acronyms follow existing local style in this repo (`VPIP`, `PFR`, `ThreeBet`).
-- Keep enum-like constants prefixed by type context (`PosSB`, `ActionFold`, `StreetFlop`).
+- Exported: `PascalCase` (`ParseResult`, `HandRangeTable`).
+- Unexported: `camelCase` (`parseCards`, `metricRegistry`).
+- Keep acronym style consistent (`VPIP`, `PFR`, `WWSF`, `ThreeBet`).
+- Action/position constants should remain domain-specific (`ActionFold`, `PosBTN`).
 
-### Types and APIs
+### Types and API Design
 
-- Prefer small, explicit structs at package boundaries.
-- Keep parser models coherent; avoid ad-hoc maps in UI code.
-- Add interfaces only where they provide swappable boundaries (e.g., persistence/service).
-- Return concrete slices for query results; avoid exposing mutable internal state.
+- Prefer explicit structs at package boundaries.
+- Add interfaces only for real swap points (service/repository/storage).
+- Keep parser model authoritative; avoid re-encoding hand logic in UI.
+- Avoid exposing mutable internals directly when a copy is safer.
 
-### Error handling
+### Error Handling
 
-- Return errors upward with context using `%w` when wrapping.
-- Use clear messages that explain operation context (`"save imported hands"`, etc.).
-- In long-running watchers/UI callbacks, surface non-fatal errors to status UI rather than panic.
-- Reserve `panic` for truly unrecoverable programmer errors (rare in this codebase).
+- Return errors with context (`fmt.Errorf("...: %w", err)`).
+- Fail fast on setup/IO errors; tolerate malformed log lines while parsing.
+- In long-running loops/watchers/UI callbacks, surface non-fatal errors in status UI.
+- Avoid `panic` except for programmer errors that should never happen.
 
-### Concurrency
+### Concurrency and UI Threading
 
-- Protect shared mutable state with `sync.Mutex`/`sync.RWMutex`.
-- Keep lock scope tight; avoid I/O while holding locks when possible.
-- UI updates must run on Fyne main thread via `fyne.Do(...)`.
-- Stop/replace watchers carefully to avoid goroutine leaks.
+- Guard shared mutable state with `sync.Mutex` / `sync.RWMutex`.
+- Keep lock scope minimal; avoid blocking I/O while holding locks.
+- Fyne UI updates must run on main thread (`fyne.Do(...)`).
+- Ensure watcher replacement/shutdown does not leak goroutines.
 
-### Parsing and data logic
+### Stats and Metric Logic
 
-- Regexes should be compiled once as package globals.
-- Parser methods should be tolerant of malformed lines (ignore and continue, not fail whole import).
-- Keep side effects centralized in service/repository layers, not in rendering code.
-- Preserve hand/action ordering semantics when transforming or persisting data.
+- Prefer opportunity-based metrics (`count / opp`) over ad-hoc ratios.
+- Keep threshold semantics consistent:
+  - Hand-frequency metrics: confidence at `n >= 200`
+  - Situational metrics: confidence at `n >= 50`
+- Show `n=` consistently for user-facing metric cards/tables.
+- Mark below-threshold values as reference (`参考値`).
 
-### Testing expectations
+### Parsing and Data Integrity
 
-- Add/adjust tests when changing parser behavior or stats semantics.
-- Prefer table-driven tests for parsing and classification logic.
-- Keep tests deterministic and independent of local machine files unless explicitly integration-only.
-- For real-log tests, guard with skip behavior when fixture file is unavailable.
+- Compile regex once as package globals.
+- Preserve action ordering and street semantics.
+- Keep world/session filtering explicit to avoid cross-world contamination.
+- Maintain idempotent import expectations at persistence boundaries.
 
-## Change Management Expectations for Agents
+## Testing Expectations
 
-- Make minimal, scoped changes consistent with existing architecture direction.
-- Do not introduce unrelated refactors while fixing one issue.
-- Keep commits logically grouped and message intent-focused.
-- Verify with targeted tests first, then broader suite when feasible.
+- Add/adjust tests when parser or stat semantics change.
+- Prefer table-driven tests for classification/opportunity logic.
+- Validate both happy-path and edge cases (missing blinds, seat changes, partial logs).
+- For integration-style real-log tests, allow skip behavior when fixture is unavailable.
 
 ## Practical Agent Workflow
 
-1. Read `mise.toml`, relevant package files, and tests before editing.
-2. Implement smallest viable change.
+1. Read `mise.toml`, touched package files, and related tests first.
+2. Make minimal, scoped changes aligned with existing architecture.
 3. Run `gofmt` on touched files.
-4. Run package-level tests for touched areas.
+4. Run focused tests for changed packages.
 5. Run `go test ./...` when practical.
-6. Summarize behavior impact and any follow-up migration notes.
+6. Summarize behavior impact, risks, and any follow-up work.
+
+## Commit Hygiene for Agents
+
+- Keep commits logically grouped by concern.
+- Avoid mixing generated/local runtime artifacts with source changes.
+- Do not commit local logs, screenshots, or SQLite runtime DB files.
+- Use intent-focused messages (why-focused, not raw file lists).
