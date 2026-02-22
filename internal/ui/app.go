@@ -47,32 +47,34 @@ type AppMetadata struct {
 
 // App is the main application controller
 type App struct {
-	ctx            context.Context
-	cancel         context.CancelFunc
-	fyneApp        fyne.App
-	win            fyne.Window
-	logPath        string
-	service        appService
-	watcher        *watcher.LogWatcher
-	watcherGen     uint64
-	changeReqCh    chan string
-	workerStopCh   chan struct{}
-	workerWG       sync.WaitGroup
-	closeOnce      sync.Once
-	isShuttingDown bool
-	mu             sync.Mutex
-	lastStats      *stats.Stats
-	lastHands      []*parser.Hand
-	lastLocalSeat  int
-	rangeState     *HandRangeViewState
-	historyState   *HandHistoryViewState
-	metricState    *MetricVisibilityState
-	settingsTab    fyne.CanvasObject
-	settingsPath   string
-	overviewView   *overviewTabView
-	positionView   *positionStatsTabView
-	currentTab     appTab
-	navExpanded    bool
+	ctx             context.Context
+	cancel          context.CancelFunc
+	fyneApp         fyne.App
+	win             fyne.Window
+	logPath         string
+	service         appService
+	watcher         *watcher.LogWatcher
+	watcherGen      uint64
+	changeReqCh     chan string
+	workerStopCh    chan struct{}
+	workerWG        sync.WaitGroup
+	closeOnce       sync.Once
+	isShuttingDown  bool
+	mu              sync.Mutex
+	lastStats       *stats.Stats
+	lastHands       []*parser.Hand
+	lastLocalSeat   int
+	rangeState      *HandRangeViewState
+	historyState    *HandHistoryViewState
+	metricState     *MetricVisibilityState
+	settingsTab     fyne.CanvasObject
+	settingsPath    string
+	overviewView    *overviewTabView
+	positionView    *positionStatsTabView
+	handRangeView   *handRangeTabView
+	handHistoryView *handHistoryTabView
+	currentTab      appTab
+	navExpanded     bool
 
 	mainContent *fyne.Container
 	railPanel   *fyne.Container
@@ -495,9 +497,17 @@ func (a *App) doRefreshCurrentTab() {
 		a.positionView.Update(s)
 		obj = a.positionView.CanvasObject()
 	case tabHandRange:
-		obj = NewHandRangeTab(s, a.win, a.rangeState)
+		if a.handRangeView == nil {
+			a.handRangeView = newHandRangeTabView(a.win, a.rangeState)
+		}
+		a.handRangeView.Update(s)
+		obj = a.handRangeView.CanvasObject()
 	case tabHandHistory:
-		obj = NewHandHistoryTab(hands, localSeat, a.historyState)
+		if a.handHistoryView == nil {
+			a.handHistoryView = newHandHistoryTabView(a.historyState)
+		}
+		a.handHistoryView.Update(hands, localSeat)
+		obj = a.handHistoryView.CanvasObject()
 	case tabSettings:
 		if a.settingsTab == nil || a.settingsPath != path {
 			a.settingsTab = NewSettingsTab(

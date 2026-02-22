@@ -160,6 +160,9 @@ func NewOverviewTab(s *stats.Stats, visibility *MetricVisibilityState, win fyne.
 	sections := []fyne.CanvasObject{
 		container.NewVBox(title, subtitle),
 		newSectionDivider(),
+		widget.NewLabelWithStyle(lang.X("overview.section.insights", "Leak Insights"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		container.NewVBox(insightRows...),
+		newSectionDivider(),
 		widget.NewLabelWithStyle(lang.X("overview.section.key_metrics", "Key Metrics"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 	}
 
@@ -174,12 +177,6 @@ func NewOverviewTab(s *stats.Stats, visibility *MetricVisibilityState, win fyne.
 			container.NewGridWithColumns(minInt(3, len(otherCards)), otherCards...),
 		)
 	}
-
-	sections = append(sections,
-		newSectionDivider(),
-		widget.NewLabelWithStyle(lang.X("overview.section.insights", "Leak Insights"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewVBox(insightRows...),
-	)
 
 	content := container.NewPadded(container.NewVBox(sections...))
 	return withFixedLowSampleLegend(container.NewScroll(content))
