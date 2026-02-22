@@ -29,8 +29,8 @@ Windows verification workflow.
 The regular CI workflow installs MinGW GCC via apt and builds with:
 
 ```bash
-sudo apt-get install -y --no-install-recommends mingw-w64 gcc pkg-config
-CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -o vrpoker-stats.exe .
+sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 pkg-config
+CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags "-s -w" -o vrpoker-stats.exe .
 ```
 
 ## Local reproduction on Linux
@@ -45,12 +45,12 @@ mise run build-windows
 This uses:
 
 ```bash
-CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -o vrpoker-stats.exe .
+CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags "-s -w" -o vrpoker-stats.exe .
 ```
 
 ## Troubleshooting
 
 - `x86_64-w64-mingw32-gcc not found`
-  - Install MinGW (`mise run deps-linux` or `sudo apt-get install -y mingw-w64`) and ensure PATH is correct.
+  - Install MinGW (`mise run deps-linux` or `sudo apt-get install -y gcc-mingw-w64-x86-64`) and ensure PATH is correct.
 - `build constraints exclude all Go files in .../go-gl/gl`
   - This usually indicates `CGO_ENABLED=0` or missing CGO compiler.

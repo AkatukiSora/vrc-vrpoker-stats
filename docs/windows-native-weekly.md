@@ -28,7 +28,7 @@ $env:CGO_ENABLED = "1"
 $env:GOOS = "windows"
 $env:GOARCH = "amd64"
 $env:CC = "C:\msys64\mingw64\bin\gcc.exe"
-go build -o vrpoker-stats.exe .
+go build -ldflags "-s -w" -o vrpoker-stats.exe .
 ```
 
 Artifacts are uploaded with 7-day retention.

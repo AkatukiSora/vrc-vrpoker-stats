@@ -169,12 +169,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gomod-
 
+      - name: Restore build cache
+        uses: actions/cache/restore@v4
+        id: restore-gobuild-windows
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-gobuild-windows-cross-${{ hashFiles('go.mod', 'go.sum', 'mise.toml', '**/*.go') }}
+          restore-keys: |
+            ${{ runner.os }}-gobuild-windows-cross-
+
       - name: Install cross-build dependencies (MinGW)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            mingw-w64 \
-            gcc \
+            gcc-mingw-w64-x86-64 \
             pkg-config
 
       - name: Show toolchain versions
@@ -191,6 +199,13 @@ jobs:
           fi
           BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           VERSION="$VERSION" COMMIT="${GITHUB_SHA}" BUILD_DATE="$BUILD_DATE" mise run build-windows
+
+      - name: Save build cache
+        uses: actions/cache/save@v4
+        if: steps.restore-gobuild-windows.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-gobuild-windows-cross-${{ github.sha }}-${{ github.run_attempt }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
