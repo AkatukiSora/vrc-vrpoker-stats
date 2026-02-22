@@ -242,10 +242,8 @@ jobs:
 
       - name: Create release archive
         run: |
-          cp run.sh dist/linux/
           tar czf vrpoker-stats-${{ github.ref_name }}-linux-wayland.tar.gz \
-            -C dist/linux vrpoker-stats \
-            run.sh
+            -C dist/linux vrpoker-stats
           zip -j vrpoker-stats-${{ github.ref_name }}-windows-amd64.zip \
             dist/windows/vrpoker-stats.exe
 
