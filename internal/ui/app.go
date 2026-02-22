@@ -38,6 +38,13 @@ const (
 	tabSettings
 )
 
+type AppMetadata struct {
+	Version       string
+	Commit        string
+	BuildDate     string
+	RepositoryURL string
+}
+
 // App is the main application controller
 type App struct {
 	ctx            context.Context
@@ -72,10 +79,11 @@ type App struct {
 	overlayNav  *fyne.Container
 
 	statusText *widget.Label
+	metadata   AppMetadata
 }
 
 // Run starts the application
-func Run(service appService) {
+func Run(service appService, metadata AppMetadata) {
 	if service == nil {
 		return
 	}
@@ -99,6 +107,7 @@ func Run(service appService) {
 		historyState: &HandHistoryViewState{SelectedHandID: -1},
 		metricState:  NewMetricVisibilityState(),
 		currentTab:   tabOverview,
+		metadata:     metadata,
 	}
 	appCtrl.startLogChangeWorker()
 	win.SetCloseIntercept(func() {
@@ -496,6 +505,7 @@ func (a *App) doRefreshCurrentTab() {
 				a.win,
 				func(nextPath string) { a.requestLogFileChange(nextPath) },
 				a.metricState,
+				a.metadata,
 				func() {
 					a.mu.Lock()
 					activeTab := a.currentTab

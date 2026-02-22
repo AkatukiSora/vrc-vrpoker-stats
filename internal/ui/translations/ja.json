@@ -164,7 +164,10 @@
   "settings.help_button": "?",
   "settings.info_text": "統計はVR Pokerワールドのセッションのみを対象に計算されます。\n過去のログ（アプリ起動前のもの）も分析されます。",
   "settings.about.title": "このアプリについて",
-  "settings.about.text": "VRC VRPoker Stats v1.0\nVRChatのVR Pokerワールドでのポーカー統計を追跡します。\n\n設定可能なメトリクス表示プリセットとメトリクスごとのヘルプ機能を搭載。\n設定を使ってダッシュボードを学習目標に合わせてカスタマイズしてください。\n\nその他の機能:\n  \u2022 ハンドレンジ分析 (13x13グリッド)\n  \u2022 ポジション別統計",
+  "settings.about.text": "VRChatのVR Pokerワールドでのポーカー統計を追跡します。\n\n設定可能なメトリクス表示プリセットとメトリクスごとのヘルプ機能を搭載。\n設定を使ってダッシュボードを学習目標に合わせてカスタマイズしてください。\n\nその他の機能:\n  \u2022 ハンドレンジ分析 (13x13グリッド)\n  \u2022 ポジション別統計",
+  "settings.about.version": "バージョン: {{.Version}}",
+  "settings.about.repository": "リポジトリ: {{.URL}}",
+  "settings.about.open_repository": "リポジトリを開く",
 
   "hand_history.no_hands": "ハンドが記録されていません。\nVR Pokerワールドでプレイを開始してください！",
   "hand_history.select_hand": "ハンドを選択して詳細を表示してください。",

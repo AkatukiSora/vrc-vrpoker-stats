@@ -116,7 +116,14 @@ jobs:
             gcc
 
       - name: Build (wayland tag)
-        run: mise run build
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="dev-${GITHUB_SHA::7}"
+          fi
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          VERSION="$VERSION" COMMIT="${GITHUB_SHA}" BUILD_DATE="$BUILD_DATE" mise run build
 
       - name: Verify binary exists
         run: |
@@ -184,7 +191,14 @@ jobs:
           x86_64-w64-mingw32-gcc --version
 
       - name: Build Windows binary (cross)
-        run: mise run build-windows
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="dev-${GITHUB_SHA::7}"
+          fi
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          VERSION="$VERSION" COMMIT="${GITHUB_SHA}" BUILD_DATE="$BUILD_DATE" mise run build-windows
 
       - name: Save build cache
         uses: actions/cache/save@v4

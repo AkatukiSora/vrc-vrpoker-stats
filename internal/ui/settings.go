@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"net/url"
 	"sort"
 
 	"fyne.io/fyne/v2"
@@ -15,6 +16,7 @@ type SettingsTab struct {
 	OnPathChange    func(string)
 	OnMetricsChange func()
 	MetricState     *MetricVisibilityState
+	Metadata        AppMetadata
 	win             fyne.Window
 }
 
@@ -23,6 +25,7 @@ func NewSettingsTab(
 	win fyne.Window,
 	onPathChange func(string),
 	metricState *MetricVisibilityState,
+	metadata AppMetadata,
 	onMetricsChange func(),
 ) fyne.CanvasObject {
 	if metricState == nil {
@@ -33,6 +36,7 @@ func NewSettingsTab(
 		OnPathChange:    onPathChange,
 		OnMetricsChange: onMetricsChange,
 		MetricState:     metricState,
+		Metadata:        metadata,
 		win:             win,
 	}
 	return st.build()
@@ -170,9 +174,39 @@ func (st *SettingsTab) buildMetricsSection() fyne.CanvasObject {
 }
 
 func (st *SettingsTab) buildAboutSection() fyne.CanvasObject {
-	aboutText := widget.NewLabel(lang.X("settings.about.text", "VRC VRPoker Stats v1.0\nTracks your poker statistics in the VRChat VR Poker world.\n\nIncludes configurable metric visibility presets and per-metric help.\nUse Settings to tailor the dashboard for your study goal.\n\nOther features:\n  • Hand Range Analysis (13x13 grid)\n  • Position-based statistics"))
+	version := st.Metadata.Version
+	if version == "" {
+		version = "dev"
+	}
+
+	aboutText := widget.NewLabel(lang.X("settings.about.text", "Tracks your poker statistics in the VRChat VR Poker world.\n\nIncludes configurable metric visibility presets and per-metric help.\nUse Settings to tailor the dashboard for your study goal.\n\nOther features:\n  • Hand Range Analysis (13x13 grid)\n  • Position-based statistics"))
 	aboutText.Wrapping = fyne.TextWrapWord
-	return newSectionCard(aboutText)
+
+	versionLabel := widget.NewLabelWithStyle(
+		lang.X("settings.about.version", "Version: {{.Version}}", map[string]any{"Version": version}),
+		fyne.TextAlignLeading,
+		fyne.TextStyle{Bold: true},
+	)
+
+	repoURL := st.Metadata.RepositoryURL
+	if repoURL == "" {
+		repoURL = "https://github.com/AkatukiSora/vrc-vrpoker-stats"
+	}
+	repoLabel := widget.NewLabel(lang.X("settings.about.repository", "Repository: {{.URL}}", map[string]any{"URL": repoURL}))
+	repoLabel.Wrapping = fyne.TextWrapWord
+	openRepoBtn := widget.NewButton(lang.X("settings.about.open_repository", "Open Repository"), func() {
+		u, err := url.Parse(repoURL)
+		if err != nil {
+			dialog.ShowError(err, st.win)
+			return
+		}
+		if err := fyne.CurrentApp().OpenURL(u); err != nil {
+			dialog.ShowError(err, st.win)
+		}
+	})
+	openRepoBtn.Importance = widget.LowImportance
+
+	return newSectionCard(container.NewVBox(versionLabel, aboutText, repoLabel, openRepoBtn))
 }
 
 func (st *SettingsTab) build() fyne.CanvasObject {

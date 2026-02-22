@@ -164,7 +164,10 @@
   "settings.help_button": "?",
   "settings.info_text": "Statistics are calculated for VR Poker world sessions only.\nHistorical logs (from before the app was started) are also analyzed.",
   "settings.about.title": "About",
-  "settings.about.text": "VRC VRPoker Stats v1.0\nTracks your poker statistics in the VRChat VR Poker world.\n\nIncludes configurable metric visibility presets and per-metric help.\nUse Settings to tailor the dashboard for your study goal.\n\nOther features:\n  \u2022 Hand Range Analysis (13x13 grid)\n  \u2022 Position-based statistics",
+  "settings.about.text": "Tracks your poker statistics in the VRChat VR Poker world.\n\nIncludes configurable metric visibility presets and per-metric help.\nUse Settings to tailor the dashboard for your study goal.\n\nOther features:\n  \u2022 Hand Range Analysis (13x13 grid)\n  \u2022 Position-based statistics",
+  "settings.about.version": "Version: {{.Version}}",
+  "settings.about.repository": "Repository: {{.URL}}",
+  "settings.about.open_repository": "Open Repository",
 
   "hand_history.no_hands": "No hands recorded yet.\nStart playing in the VR Poker world!",
   "hand_history.select_hand": "Select a hand to see details.",

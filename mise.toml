@@ -11,13 +11,27 @@ CGO_ENABLED = "1"
 
 [tasks.build]
 description = "Build the binary (Wayland)"
-run = 'go build -tags "$BUILD_TAGS" -ldflags "-s -w" -o "$BINARY" .'
+run = '''
+  VERSION="${VERSION:-dev}"
+  COMMIT="${COMMIT:-local}"
+  BUILD_DATE="${BUILD_DATE:-unknown}"
+  go build -tags "$BUILD_TAGS" \
+    -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
+    -o "$BINARY" .
+'''
 sources = ["**/*.go", "go.mod", "go.sum"]
 outputs = ["{{env.BINARY}}"]
 
 [tasks.build-debug]
 description = "Build with debug info (no stripping)"
-run = 'go build -tags "$BUILD_TAGS" -o "${BINARY}-debug" .'
+run = '''
+  VERSION="${VERSION:-dev}"
+  COMMIT="${COMMIT:-local}"
+  BUILD_DATE="${BUILD_DATE:-unknown}"
+  go build -tags "$BUILD_TAGS" \
+    -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
+    -o "${BINARY}-debug" .
+'''
 
 [tasks.build-windows]
 description = "Cross-build Windows amd64 binary (requires MinGW)"
@@ -27,8 +41,12 @@ run = '''
     echo "Install MinGW first, e.g. on Ubuntu: sudo apt-get install -y gcc-mingw-w64-x86-64"
     exit 1
   fi
+  VERSION="${VERSION:-dev}"
+  COMMIT="${COMMIT:-local}"
+  BUILD_DATE="${BUILD_DATE:-unknown}"
   CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc \
-    go build -ldflags "-s -w" -o "${BINARY}.exe" .
+    go build -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
+    -o "${BINARY}.exe" .
 '''
 
 [tasks.deps-linux]
