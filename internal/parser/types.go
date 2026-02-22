@@ -2,6 +2,31 @@ package parser
 
 import "time"
 
+type InstanceType string
+
+const (
+	InstanceTypeUnknown     InstanceType = "unknown"
+	InstanceTypePublic      InstanceType = "public"
+	InstanceTypeFriends     InstanceType = "friends"
+	InstanceTypeFriendsPlus InstanceType = "friends_plus"
+	InstanceTypeInvite      InstanceType = "invite"
+	InstanceTypeInvitePlus  InstanceType = "invite_plus"
+	InstanceTypeGroup       InstanceType = "group"
+	InstanceTypeGroupPlus   InstanceType = "group_plus"
+	InstanceTypeGroupPublic InstanceType = "group_public"
+)
+
+type HandAnomaly struct {
+	Code     string
+	Severity string
+	Detail   string
+}
+
+type InstanceUser struct {
+	UserUID     string
+	DisplayName string
+}
+
 // Card represents a playing card
 type Card struct {
 	Rank string // "A", "K", "Q", "J", "10", "2"-"9"
@@ -144,20 +169,52 @@ type PlayerHandInfo struct {
 
 // Hand represents a single poker hand
 type Hand struct {
-	ID              int
-	StartTime       time.Time
-	EndTime         time.Time
-	LocalPlayerSeat int // Which seat is the local player
-	CommunityCards  []Card
-	Players         map[int]*PlayerHandInfo // keyed by seat number
-	SBSeat          int
-	BBSeat          int
-	ActiveSeats     []int // seats with players in this hand
-	NumPlayers      int
-	TotalPot        int
-	WinnerSeat      int
-	WinType         string // "fold" or "showdown"
-	IsComplete      bool
+	ID               int
+	HandUID          string
+	StartTime        time.Time
+	EndTime          time.Time
+	LocalPlayerSeat  int // Which seat is the local player
+	WorldID          string
+	WorldDisplayName string
+	InstanceUID      string
+	InstanceType     InstanceType
+	InstanceOwner    string
+	InstanceRegion   string
+	CommunityCards   []Card
+	Players          map[int]*PlayerHandInfo // keyed by seat number
+	InstanceUsers    []InstanceUser
+	SBSeat           int
+	BBSeat           int
+	ActiveSeats      []int // seats with players in this hand
+	NumPlayers       int
+	TotalPot         int
+	WinnerSeat       int
+	WinType          string // "fold" or "showdown"
+	IsComplete       bool
+	HasAnomaly       bool
+	StatsEligible    bool
+	Anomalies        []HandAnomaly
+}
+
+func (h *Hand) HasDataAnomaly() bool {
+	if h == nil {
+		return false
+	}
+	return h.HasAnomaly || len(h.Anomalies) > 0
+}
+
+func (h *Hand) IsStatsEligible() bool {
+	if h == nil {
+		return false
+	}
+	if h.HasDataAnomaly() {
+		return false
+	}
+	if h.StatsEligible {
+		return true
+	}
+	// Backward compatibility for legacy rows that predate this flag.
+	return true
 }
 
 // VRPokerWorldID is the VRChat world ID for VR Poker

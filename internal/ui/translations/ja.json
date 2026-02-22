@@ -181,6 +181,7 @@
   "hand_history.summary.pot": "ポット: {{.Value}}",
   "hand_history.summary.pos": "位置: {{.Value}}",
   "hand_history.summary.players": "人数: {{.Value}}",
+  "hand_history.summary.anomaly": "品質: 注意",
   "hand_history.result_won_simple": "勝利",
   "hand_history.result_lost_simple": "敗北",
   "hand_history.won": "{{.Chips}}チップ獲得",
@@ -215,6 +216,8 @@
   "hand_history.title": "最近のハンド",
   "hand_history.subtitle": "ハンドを選択してストリートごとのアクションを確認できます。",
   "hand_history.result_won": "結果: {{.Result}} | ポット: {{.Pot}} | ポジション: {{.Pos}} | プレイヤー数: {{.Players}}",
+  "hand_history.anomaly.title": "データ品質の警告",
+  "hand_history.anomaly.flagged": "このハンドには異常値が含まれている可能性があります。",
 
   "hand_range.samples": "サンプル数: {{.N}}",
   "hand_range.no_class_data": "クラス別データがまだありません。",

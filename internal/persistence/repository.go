@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
@@ -69,17 +71,55 @@ type ImportBatchRepository interface {
 }
 
 func GenerateHandUID(h *parser.Hand, src HandSourceRef) string {
-	payload := fmt.Sprintf(
-		"%s|%d|%d|%d|%d|%d|%d|%s",
-		src.SourcePath,
-		src.StartByte,
-		src.EndByte,
-		src.StartLine,
-		src.EndLine,
-		h.ID,
-		h.StartTime.UnixNano(),
-		h.WinType,
-	)
+	if h == nil {
+		payload := fmt.Sprintf("src:%s|%d|%d|%d|%d", src.SourcePath, src.StartByte, src.EndByte, src.StartLine, src.EndLine)
+		s := sha256.Sum256([]byte(payload))
+		return hex.EncodeToString(s[:])
+	}
+
+	b := strings.Builder{}
+	b.WriteString("v2|")
+	b.WriteString(h.StartTime.UTC().Format(time.RFC3339Nano))
+	b.WriteString("|")
+	b.WriteString(h.EndTime.UTC().Format(time.RFC3339Nano))
+	b.WriteString("|")
+	b.WriteString(h.WorldID)
+	b.WriteString("|")
+	b.WriteString(h.InstanceUID)
+	b.WriteString("|")
+	b.WriteString(fmt.Sprintf("%d|%d|%d|%d|%d|%s", h.LocalPlayerSeat, h.SBSeat, h.BBSeat, h.WinnerSeat, h.TotalPot, h.WinType))
+
+	b.WriteString("|B:")
+	for _, c := range h.CommunityCards {
+		b.WriteString(c.Rank)
+		b.WriteString(c.Suit)
+		b.WriteString(",")
+	}
+
+	seats := make([]int, 0, len(h.Players))
+	for seat := range h.Players {
+		seats = append(seats, seat)
+	}
+	sort.Ints(seats)
+	b.WriteString("|P:")
+	for _, seat := range seats {
+		pi := h.Players[seat]
+		if pi == nil {
+			continue
+		}
+		b.WriteString(fmt.Sprintf("%d:%d:%t:%t:%d:", seat, pi.Position, pi.ShowedDown, pi.Won, pi.PotWon))
+		for _, c := range pi.HoleCards {
+			b.WriteString(c.Rank)
+			b.WriteString(c.Suit)
+		}
+		b.WriteString(":")
+		for _, act := range pi.Actions {
+			b.WriteString(fmt.Sprintf("%s/%d/%d/%d/", act.Timestamp.UTC().Format(time.RFC3339Nano), act.Street, act.Action, act.Amount))
+		}
+		b.WriteString(";")
+	}
+
+	payload := b.String()
 	s := sha256.Sum256([]byte(payload))
 	return hex.EncodeToString(s[:])
 }

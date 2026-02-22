@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"sort"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -270,46 +271,23 @@ func handSummaryEntryFields(h *parser.Hand, localSeat int) ([]string, []string) 
 		boardStr = "-"
 	}
 
-	result := lang.X("hand_history.na", "N/A")
-	posStr := "?"
-	net := 0
-	if lp, ok := h.Players[seat]; ok {
-		invested := 0
-		for _, act := range lp.Actions {
-			invested += act.Amount
-		}
-		net = lp.PotWon - invested
-
-		if lp.Won {
-			result = lang.X("hand_history.result_won_simple", "Won")
-		} else {
-			result = lang.X("hand_history.result_lost_simple", "Lost")
-		}
-
-		if lp.Position != parser.PosUnknown {
-			posStr = lp.Position.String()
-		} else if seat == h.SBSeat {
-			posStr = "SB"
-		} else if seat == h.BBSeat {
-			posStr = "BB"
-		} else {
-			posStr = lang.X("hand_history.seat", "Seat {{.N}}", map[string]any{"N": seat})
-		}
-	}
+	outcome := buildHandOutcomeSummary(h, seat)
 
 	line1 := []string{
-		lang.X("hand_history.summary.hand_short", "#{{.ID}}", map[string]any{"ID": h.ID}),
 		lang.X("hand_history.summary.time", "Time: {{.Time}}", map[string]any{"Time": timeStr}),
 		lang.X("hand_history.summary.cards", "Cards: {{.Cards}}", map[string]any{"Cards": holeStr}),
 		lang.X("hand_history.summary.board", "Board: {{.Board}}", map[string]any{"Board": boardStr}),
 	}
 
 	line2 := []string{
-		lang.X("hand_history.summary.result", "Result: {{.Value}}", map[string]any{"Value": result}),
-		lang.X("hand_history.summary.net", "Net: {{.Value}}", map[string]any{"Value": signedChips(net)}),
-		lang.X("hand_history.summary.pot", "Pot: {{.Value}}", map[string]any{"Value": h.TotalPot}),
-		lang.X("hand_history.summary.pos", "Pos: {{.Value}}", map[string]any{"Value": posStr}),
-		lang.X("hand_history.summary.players", "Players: {{.Value}}", map[string]any{"Value": h.NumPlayers}),
+		lang.X("hand_history.summary.result", "Result: {{.Value}}", map[string]any{"Value": outcome.Result}),
+		lang.X("hand_history.summary.net", "Net: {{.Value}}", map[string]any{"Value": outcome.NetValue}),
+		lang.X("hand_history.summary.pot", "Pot: {{.Value}}", map[string]any{"Value": outcome.PotValue}),
+		lang.X("hand_history.summary.pos", "Pos: {{.Value}}", map[string]any{"Value": outcome.PositionValue}),
+		lang.X("hand_history.summary.players", "Players: {{.Value}}", map[string]any{"Value": outcome.PlayersValue}),
+	}
+	if h.HasDataAnomaly() {
+		line2 = append(line2, lang.X("hand_history.summary.anomaly", "Quality: Flagged"))
 	}
 
 	return line1, line2
@@ -330,9 +308,9 @@ func newHandListEntryRow() (fyne.CanvasObject, *handListEntryRefs) {
 		return lbl
 	}
 
-	line1Refs := make([]*widget.Label, 0, 4)
-	line1Objs := make([]fyne.CanvasObject, 0, 4)
-	for i := 0; i < 4; i++ {
+	line1Refs := make([]*widget.Label, 0, 3)
+	line1Objs := make([]fyne.CanvasObject, 0, 3)
+	for i := 0; i < 3; i++ {
 		lbl := newCell(fyne.TextStyle{Bold: true})
 		line1Refs = append(line1Refs, lbl)
 		line1Objs = append(line1Objs, lbl)
@@ -347,8 +325,8 @@ func newHandListEntryRow() (fyne.CanvasObject, *handListEntryRefs) {
 	}
 
 	line1Wrap := container.New(newWeightedMinRowLayout(
-		[]float32{0.7, 1.1, 1.8, 3.4},
-		[]float32{56, 88, 128, 210},
+		[]float32{1.1, 1.9, 3.6},
+		[]float32{88, 136, 220},
 		theme.Padding(),
 	), line1Objs...)
 	line2Wrap := container.New(newWeightedMinRowLayout(
@@ -388,7 +366,78 @@ func signedChips(v int) string {
 }
 
 type HandHistoryViewState struct {
-	SelectedHandID int
+	SelectedHandKey string
+}
+
+type handOutcomeSummary struct {
+	Result        string
+	NetValue      string
+	PotValue      string
+	PositionValue string
+	PlayersValue  string
+	InHand        bool
+	Won           bool
+}
+
+func buildHandOutcomeSummary(h *parser.Hand, seat int) handOutcomeSummary {
+	out := handOutcomeSummary{
+		Result:        lang.X("hand_history.na", "N/A"),
+		NetValue:      "0",
+		PotValue:      fmt.Sprintf("%d", h.TotalPot),
+		PositionValue: "?",
+		PlayersValue:  fmt.Sprintf("%d", h.NumPlayers),
+	}
+
+	lp, ok := h.Players[seat]
+	if !ok {
+		out.Result = lang.X("hand_history.not_in_hand", "Not in this hand")
+		out.NetValue = "-"
+		out.PotValue = "-"
+		out.PositionValue = "-"
+		out.PlayersValue = "-"
+		return out
+	}
+
+	out.InHand = true
+	invested := 0
+	for _, act := range lp.Actions {
+		invested += act.Amount
+	}
+	out.NetValue = signedChips(lp.PotWon - invested)
+	out.Won = lp.Won
+	if lp.Won {
+		out.Result = lang.X("hand_history.result_won_simple", "Won")
+	} else {
+		out.Result = lang.X("hand_history.result_lost_simple", "Lost")
+	}
+
+	if lp.Position != parser.PosUnknown {
+		out.PositionValue = lp.Position.String()
+	} else if seat == h.SBSeat {
+		out.PositionValue = "SB"
+	} else if seat == h.BBSeat {
+		out.PositionValue = "BB"
+	} else {
+		out.PositionValue = lang.X("hand_history.seat", "Seat {{.N}}", map[string]any{"N": seat})
+	}
+
+	return out
+}
+
+func handSelectionKey(h *parser.Hand) string {
+	if h == nil {
+		return ""
+	}
+	if h.HandUID != "" {
+		return "uid:" + h.HandUID
+	}
+	if !h.StartTime.IsZero() {
+		return "ts:" + h.StartTime.UTC().Format(time.RFC3339Nano)
+	}
+	if h.ID > 0 {
+		return fmt.Sprintf("id:%d", h.ID)
+	}
+	return ""
 }
 
 type seatAction struct {
@@ -575,43 +624,16 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 	resultHeader := widget.NewLabel(lang.X("hand_history.result", "Result"))
 	resultHeader.TextStyle = fyne.TextStyle{Bold: true}
 
+	outcome := buildHandOutcomeSummary(h, seat)
 	var resultText *canvas.Text
-	resultValue := lang.X("hand_history.na", "N/A")
-	netValue := "0"
-	potValue := fmt.Sprintf("%d", h.TotalPot)
-	positionValue := "?"
-	playersValue := fmt.Sprintf("%d", h.NumPlayers)
-
-	if lp, ok := h.Players[seat]; ok {
-		invested := 0
-		for _, act := range lp.Actions {
-			invested += act.Amount
-		}
-		netValue = signedChips(lp.PotWon - invested)
-
-		if lp.Won {
-			resultValue = lang.X("hand_history.result_won_simple", "Won")
-			resultText = canvas.NewText(resultValue, color.NRGBA{R: 0x4c, G: 0xaf, B: 0x50, A: 0xff})
+	if outcome.InHand {
+		if outcome.Won {
+			resultText = canvas.NewText(outcome.Result, color.NRGBA{R: 0x4c, G: 0xaf, B: 0x50, A: 0xff})
 		} else {
-			resultValue = lang.X("hand_history.result_lost_simple", "Lost")
-			resultText = canvas.NewText(resultValue, color.NRGBA{R: 0xf4, G: 0x43, B: 0x36, A: 0xff})
-		}
-
-		if lp.Position != parser.PosUnknown {
-			positionValue = lp.Position.String()
-		} else if seat == h.SBSeat {
-			positionValue = "SB"
-		} else if seat == h.BBSeat {
-			positionValue = "BB"
-		} else {
-			positionValue = lang.X("hand_history.seat", "Seat {{.N}}", map[string]any{"N": seat})
+			resultText = canvas.NewText(outcome.Result, color.NRGBA{R: 0xf4, G: 0x43, B: 0x36, A: 0xff})
 		}
 	} else {
 		resultText = canvas.NewText(lang.X("hand_history.not_in_hand", "Not in this hand"), theme.ForegroundColor())
-		netValue = "-"
-		potValue = "-"
-		positionValue = "-"
-		playersValue = "-"
 	}
 	resultText.TextStyle = fyne.TextStyle{Bold: true}
 	resultText.TextSize = normalSize * 1.2
@@ -624,19 +646,19 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 		),
 		container.NewGridWithColumns(2,
 			widget.NewLabel(lang.X("hand_history.net_chips", "Net Chips")),
-			widget.NewLabel(netValue),
+			widget.NewLabel(outcome.NetValue),
 		),
 		container.NewGridWithColumns(2,
 			widget.NewLabel(lang.X("hand_history.pot", "Pot")),
-			widget.NewLabel(potValue),
+			widget.NewLabel(outcome.PotValue),
 		),
 		container.NewGridWithColumns(2,
 			widget.NewLabel(lang.X("hand_history.position", "Position")),
-			widget.NewLabel(positionValue),
+			widget.NewLabel(outcome.PositionValue),
 		),
 		container.NewGridWithColumns(2,
 			widget.NewLabel(lang.X("hand_history.players", "Players")),
-			widget.NewLabel(playersValue),
+			widget.NewLabel(outcome.PlayersValue),
 		),
 	)
 
@@ -669,7 +691,26 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 	resultSection := newSectionCard(container.NewVBox(resultHeader, resultTable))
 	actionsSection := newSectionCard(container.NewVBox(actionsHeader, container.NewVBox(actionSections...)))
 
-	content := container.NewVBox(holeSection, boardSection, resultSection, actionsSection)
+	sections := []fyne.CanvasObject{holeSection, boardSection, resultSection}
+	if h.HasDataAnomaly() {
+		warnHeader := widget.NewLabel(lang.X("hand_history.anomaly.title", "Data Quality Warning"))
+		warnHeader.TextStyle = fyne.TextStyle{Bold: true}
+		lines := make([]string, 0, len(h.Anomalies))
+		for _, anom := range h.Anomalies {
+			lines = append(lines, anom.Code)
+		}
+		detail := strings.Join(lines, ", ")
+		if detail == "" {
+			detail = lang.X("hand_history.anomaly.flagged", "Potentially anomalous hand data detected.")
+		}
+		warnText := canvas.NewText(detail, uiWarningColor)
+		warnText.TextSize = normalSize
+		warnText.Alignment = fyne.TextAlignLeading
+		sections = append(sections, newSectionCard(container.NewVBox(warnHeader, warnText)))
+	}
+	sections = append(sections, actionsSection)
+
+	content := container.NewVBox(sections...)
 
 	return container.NewScroll(container.NewPadded(content))
 }
@@ -688,7 +729,7 @@ func NewHandHistoryTab(hands []*parser.Hand, localSeat int, state *HandHistoryVi
 		return newCenteredEmptyState(lang.X("hand_history.no_hands", "No hands recorded yet.\nStart playing in the VR Poker world!"))
 	}
 	if state == nil {
-		state = &HandHistoryViewState{SelectedHandID: -1}
+		state = &HandHistoryViewState{}
 	}
 
 	// Reverse order: newest first.
@@ -720,15 +761,15 @@ func NewHandHistoryTab(hands []*parser.Hand, localSeat int, state *HandHistoryVi
 
 	list.OnSelected = func(id widget.ListItemID) {
 		h := reversed[id]
-		state.SelectedHandID = h.ID
+		state.SelectedHandKey = handSelectionKey(h)
 		detail := buildDetailPanel(h, localSeat)
 		detailContent.Objects = []fyne.CanvasObject{detail}
 		detailContent.Refresh()
 	}
 
-	if state.SelectedHandID >= 0 {
+	if state.SelectedHandKey != "" {
 		for i, h := range reversed {
-			if h.ID == state.SelectedHandID {
+			if handSelectionKey(h) == state.SelectedHandKey {
 				list.Select(i)
 				break
 			}

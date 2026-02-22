@@ -110,56 +110,23 @@ func (s *Service) importFile(ctx context.Context, path string, activate bool) er
 		lineNo++
 		byteOffset += int64(len(line)) + 1
 
-		if reNewGame.MatchString(line) && handStartLn <= 0 {
-			handStartLn = lineNo
-			handStartByte = lineStartByte
-		}
+		markHandStart(line, lineNo, lineStartByte, &handStartLn, &handStartByte)
 
 		_ = p.ParseLine(line)
 		hands := p.GetHands()
 		if len(hands) > parsedHands {
-			newRows := make([]persistence.PersistedHand, 0, len(hands)-parsedHands)
-			for i := parsedHands; i < len(hands); i++ {
-				h := hands[i]
-				if handStartLn <= 0 {
-					handStartLn = maxInt64(1, lineNo)
-					handStartByte = lineStartByte
-				}
-				source := persistence.HandSourceRef{
-					SourcePath: path,
-					StartByte:  handStartByte,
-					EndByte:    byteOffset,
-					StartLine:  handStartLn,
-					EndLine:    lineNo,
-				}
-				source.HandUID = persistence.GenerateHandUID(h, source)
-				newRows = append(newRows, persistence.PersistedHand{Hand: h, Source: source})
-				handStartLn = lineNo
-				handStartByte = byteOffset
-			}
-
-			cursor := persistence.ImportCursor{
-				SourcePath:     path,
-				NextByteOffset: byteOffset,
-				NextLineNumber: lineNo,
-				UpdatedAt:      time.Now(),
-			}
+			newRows := collectNewPersistedHands(path, hands, &parsedHands, lineNo, &handStartLn, &handStartByte, lineStartByte, byteOffset)
+			cursor := buildImportCursor(path, byteOffset, lineNo)
 			if err := s.saveImportBatch(ctx, newRows, cursor); err != nil {
 				return fmt.Errorf("save imported hands: %w", err)
 			}
-			parsedHands = len(hands)
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return err
 	}
 
-	if err := s.saveImportBatch(ctx, nil, persistence.ImportCursor{
-		SourcePath:     path,
-		NextByteOffset: byteOffset,
-		NextLineNumber: lineNo,
-		UpdatedAt:      time.Now(),
-	}); err != nil {
+	if err := s.saveImportBatch(ctx, nil, buildImportCursor(path, byteOffset, lineNo)); err != nil {
 		return err
 	}
 
@@ -224,33 +191,12 @@ func (s *Service) ImportLines(ctx context.Context, sourcePath string, lines []st
 		}
 		byteOffset = lineEndByte
 
-		if reNewGame.MatchString(line) && handStartLn <= 0 {
-			handStartLn = lineNo
-			handStartByte = lineStartByte
-		}
+		markHandStart(line, lineNo, lineStartByte, &handStartLn, &handStartByte)
 
 		_ = workingParser.ParseLine(line)
 		hands := workingParser.GetHands()
 		if len(hands) > parsedHands {
-			for idx := parsedHands; idx < len(hands); idx++ {
-				h := hands[idx]
-				if handStartLn <= 0 {
-					handStartLn = lineNo
-					handStartByte = lineStartByte
-				}
-				source := persistence.HandSourceRef{
-					SourcePath: sourcePath,
-					StartByte:  handStartByte,
-					EndByte:    lineEndByte,
-					StartLine:  handStartLn,
-					EndLine:    lineNo,
-				}
-				source.HandUID = persistence.GenerateHandUID(h, source)
-				newRows = append(newRows, persistence.PersistedHand{Hand: h, Source: source})
-				handStartLn = lineNo
-				handStartByte = lineEndByte
-			}
-			parsedHands = len(hands)
+			newRows = append(newRows, collectNewPersistedHands(sourcePath, hands, &parsedHands, lineNo, &handStartLn, &handStartByte, lineStartByte, lineEndByte)...)
 		}
 	}
 
@@ -258,12 +204,7 @@ func (s *Service) ImportLines(ctx context.Context, sourcePath string, lines []st
 		byteOffset = endOffset
 	}
 
-	cursor := persistence.ImportCursor{
-		SourcePath:     sourcePath,
-		NextByteOffset: byteOffset,
-		NextLineNumber: lineNo,
-		UpdatedAt:      time.Now(),
-	}
+	cursor := buildImportCursor(sourcePath, byteOffset, lineNo)
 	if err := s.saveImportBatch(ctx, newRows, cursor); err != nil {
 		return err
 	}
@@ -349,4 +290,47 @@ func maxInt64(a, b int64) int64 {
 		return a
 	}
 	return b
+}
+
+func markHandStart(line string, lineNo, lineStartByte int64, handStartLn, handStartByte *int64) {
+	if reNewGame.MatchString(line) && *handStartLn <= 0 {
+		*handStartLn = lineNo
+		*handStartByte = lineStartByte
+	}
+}
+
+func collectNewPersistedHands(sourcePath string, hands []*parser.Hand, parsedHands *int, lineNo int64, handStartLn, handStartByte *int64, lineStartByte, lineEndByte int64) []persistence.PersistedHand {
+	if len(hands) <= *parsedHands {
+		return nil
+	}
+	newRows := make([]persistence.PersistedHand, 0, len(hands)-*parsedHands)
+	for i := *parsedHands; i < len(hands); i++ {
+		h := hands[i]
+		if *handStartLn <= 0 {
+			*handStartLn = maxInt64(1, lineNo)
+			*handStartByte = lineStartByte
+		}
+		source := persistence.HandSourceRef{
+			SourcePath: sourcePath,
+			StartByte:  *handStartByte,
+			EndByte:    lineEndByte,
+			StartLine:  *handStartLn,
+			EndLine:    lineNo,
+		}
+		source.HandUID = persistence.GenerateHandUID(h, source)
+		newRows = append(newRows, persistence.PersistedHand{Hand: h, Source: source})
+		*handStartLn = lineNo
+		*handStartByte = lineEndByte
+	}
+	*parsedHands = len(hands)
+	return newRows
+}
+
+func buildImportCursor(sourcePath string, nextByteOffset, nextLineNumber int64) persistence.ImportCursor {
+	return persistence.ImportCursor{
+		SourcePath:     sourcePath,
+		NextByteOffset: nextByteOffset,
+		NextLineNumber: nextLineNumber,
+		UpdatedAt:      time.Now(),
+	}
 }

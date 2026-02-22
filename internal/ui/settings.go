@@ -167,7 +167,7 @@ func (st *SettingsTab) buildMetricsSection() fyne.CanvasObject {
 
 	groups := widget.NewAccordion(groupItems...)
 	for _, item := range groups.Items {
-		item.Open = true
+		item.Open = false
 	}
 
 	return newSectionCard(container.NewVBox(metricsHint, presetRow, groups))
@@ -217,12 +217,14 @@ func (st *SettingsTab) build() fyne.CanvasObject {
 	sections := widget.NewAccordion(
 		widget.NewAccordionItem(lang.X("settings.section.log_source", "Log Source"), st.buildLogSourceSection()),
 		widget.NewAccordionItem(lang.X("settings.section.metrics", "Metrics"), st.buildMetricsSection()),
-		widget.NewAccordionItem(lang.X("settings.about.title", "About"), st.buildAboutSection()),
 	)
 	for _, item := range sections.Items {
-		item.Open = true
+		item.Open = false
 	}
 
-	content := container.NewVBox(title, intro, newSectionDivider(), sections)
+	aboutTitle := widget.NewLabelWithStyle(lang.X("settings.about.title", "About"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	aboutSection := st.buildAboutSection()
+
+	content := container.NewVBox(title, intro, newSectionDivider(), sections, newSectionDivider(), aboutTitle, aboutSection)
 	return container.NewScroll(container.NewPadded(content))
 }

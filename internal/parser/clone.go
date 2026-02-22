@@ -6,19 +6,26 @@ func (p *Parser) Clone() *Parser {
 	}
 
 	clone := &Parser{
-		result:           cloneParseResult(p.result),
-		handIDCounter:    p.handIDCounter,
-		inPokerWorld:     p.inPokerWorld,
-		worldDetected:    p.worldDetected,
-		currentStreet:    p.currentStreet,
-		streetBetAmount:  p.streetBetAmount,
-		streetBets:       cloneIntMap(p.streetBets),
-		foldedThisHand:   cloneBoolMap(p.foldedThisHand),
-		pendingWinners:   append([]pendingWin(nil), p.pendingWinners...),
-		lastTimestamp:    p.lastTimestamp,
-		pendingLocalSeat: p.pendingLocalSeat,
-		lastBlindSeat:    p.lastBlindSeat,
-		pfActions:        append([]pfAction(nil), p.pfActions...),
+		result:                cloneParseResult(p.result),
+		handIDCounter:         p.handIDCounter,
+		inPokerWorld:          p.inPokerWorld,
+		worldDetected:         p.worldDetected,
+		currentStreet:         p.currentStreet,
+		streetBetAmount:       p.streetBetAmount,
+		streetBets:            cloneIntMap(p.streetBets),
+		foldedThisHand:        cloneBoolMap(p.foldedThisHand),
+		pendingWinners:        append([]pendingWin(nil), p.pendingWinners...),
+		lastTimestamp:         p.lastTimestamp,
+		pendingLocalSeat:      p.pendingLocalSeat,
+		lastBlindSeat:         p.lastBlindSeat,
+		pfActions:             append([]pfAction(nil), p.pfActions...),
+		currentWorldID:        p.currentWorldID,
+		currentWorldName:      p.currentWorldName,
+		currentInstanceUID:    p.currentInstanceUID,
+		currentInstanceType:   p.currentInstanceType,
+		currentInstanceOwner:  p.currentInstanceOwner,
+		currentInstanceRegion: p.currentInstanceRegion,
+		currentInstanceUsers:  cloneStringMap(p.currentInstanceUsers),
 	}
 	clone.pendingLocalCards = append([]Card(nil), p.pendingLocalCards...)
 	clone.currentHand = cloneHand(p.currentHand)
@@ -47,6 +54,8 @@ func cloneHand(h *Hand) *Hand {
 	copyHand := *h
 	copyHand.CommunityCards = append([]Card(nil), h.CommunityCards...)
 	copyHand.ActiveSeats = append([]int(nil), h.ActiveSeats...)
+	copyHand.InstanceUsers = append([]InstanceUser(nil), h.InstanceUsers...)
+	copyHand.Anomalies = append([]HandAnomaly(nil), h.Anomalies...)
 	copyHand.Players = make(map[int]*PlayerHandInfo, len(h.Players))
 	for seat, pi := range h.Players {
 		copyHand.Players[seat] = clonePlayerInfo(pi)
@@ -80,6 +89,17 @@ func cloneBoolMap(in map[int]bool) map[int]bool {
 		return make(map[int]bool)
 	}
 	out := make(map[int]bool, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return make(map[string]string)
+	}
+	out := make(map[string]string, len(in))
 	for k, v := range in {
 		out[k] = v
 	}

@@ -181,6 +181,7 @@
   "hand_history.summary.pot": "Pot: {{.Value}}",
   "hand_history.summary.pos": "Pos: {{.Value}}",
   "hand_history.summary.players": "Players: {{.Value}}",
+  "hand_history.summary.anomaly": "Quality: Flagged",
   "hand_history.result_won_simple": "Won",
   "hand_history.result_lost_simple": "Lost",
   "hand_history.won": "Won {{.Chips}} chips",
@@ -215,6 +216,8 @@
   "hand_history.title": "Recent Hands",
   "hand_history.subtitle": "Select a hand to inspect street-by-street action flow.",
   "hand_history.result_won": "Result: {{.Result}} | Pot: {{.Pot}} | Position: {{.Pos}} | Players: {{.Players}}",
+  "hand_history.anomaly.title": "Data Quality Warning",
+  "hand_history.anomaly.flagged": "Potentially anomalous hand data detected.",
 
   "hand_range.samples": "Samples: {{.N}}",
   "hand_range.no_class_data": "No class-level data yet.",

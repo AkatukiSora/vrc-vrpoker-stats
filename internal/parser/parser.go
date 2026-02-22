@@ -13,8 +13,11 @@ import (
 var (
 	reTimestamp = regexp.MustCompile(`^(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}) \w+\s+-\s+(.+)$`)
 
-	reWorldJoining = regexp.MustCompile(`Joining (wrld_[a-f0-9-]+)`)
-	reWorldLeaving = regexp.MustCompile(`\[Behaviour\] OnLeftRoom`)
+	reWorldJoining   = regexp.MustCompile(`(?:\[Behaviour\] Joining|Joining friend:) (wrld_[a-f0-9-]+:[^\s]+|wrld_[a-f0-9-]+)`)
+	reDestination    = regexp.MustCompile(`\[Behaviour\] Destination (?:requested|fetching|set): (wrld_[a-f0-9-]+:[^\s]+|wrld_[a-f0-9-]+)`)
+	reEnteringRoom   = regexp.MustCompile(`\[Behaviour\] Entering Room: (.+)`)
+	reOnPlayerJoined = regexp.MustCompile(`\[Behaviour\] OnPlayerJoined (.+?) \((usr_[a-f0-9-]+)\)`)
+	reWorldLeaving   = regexp.MustCompile(`\[Behaviour\] OnLeftRoom`)
 
 	reNewGame        = regexp.MustCompile(`\[Table\]: Preparing for New Game`)
 	reNewCommunity   = regexp.MustCompile(`\[Table\]: New Community Card: (.+)`)
@@ -59,6 +62,14 @@ type Parser struct {
 
 	// Pre-flop action sequence for 3bet/fold-to-3bet detection
 	pfActions []pfAction
+
+	currentWorldID        string
+	currentWorldName      string
+	currentInstanceUID    string
+	currentInstanceType   InstanceType
+	currentInstanceOwner  string
+	currentInstanceRegion string
+	currentInstanceUsers  map[string]string
 }
 
 type pendingWin struct {
@@ -74,11 +85,13 @@ type pfAction struct {
 
 func NewParser() *Parser {
 	return &Parser{
-		result:           ParseResult{LocalPlayerSeat: -1},
-		foldedThisHand:   make(map[int]bool),
-		streetBets:       make(map[int]int),
-		lastBlindSeat:    -1,
-		pendingLocalSeat: -1,
+		result:               ParseResult{LocalPlayerSeat: -1},
+		foldedThisHand:       make(map[int]bool),
+		streetBets:           make(map[int]int),
+		lastBlindSeat:        -1,
+		pendingLocalSeat:     -1,
+		currentInstanceType:  InstanceTypeUnknown,
+		currentInstanceUsers: make(map[string]string),
 	}
 }
 
@@ -94,10 +107,30 @@ func (p *Parser) ParseLine(line string) error {
 	p.lastTimestamp = ts
 	msg := strings.TrimSpace(m[2])
 
+	if dm := reDestination.FindStringSubmatch(msg); dm != nil {
+		p.setLocation(dm[1])
+		return nil
+	}
+
+	if em := reEnteringRoom.FindStringSubmatch(msg); em != nil {
+		p.currentWorldName = strings.TrimSpace(em[1])
+		return nil
+	}
+
+	if pm := reOnPlayerJoined.FindStringSubmatch(msg); pm != nil {
+		uid := pm[2]
+		name := strings.TrimSpace(pm[1])
+		if uid != "" {
+			p.currentInstanceUsers[uid] = name
+		}
+		return nil
+	}
+
 	// World detection
 	if wm := reWorldJoining.FindStringSubmatch(msg); wm != nil {
+		p.setLocation(wm[1])
 		p.worldDetected = true
-		p.inPokerWorld = (wm[1] == VRPokerWorldID)
+		p.inPokerWorld = (p.currentWorldID == VRPokerWorldID)
 		p.result.InPokerWorld = p.inPokerWorld
 		return nil
 	}
@@ -107,6 +140,13 @@ func (p *Parser) ParseLine(line string) error {
 			p.finalizeCurrentHand()
 		}
 		p.inPokerWorld = false
+		p.currentWorldID = ""
+		p.currentWorldName = ""
+		p.currentInstanceUID = ""
+		p.currentInstanceType = InstanceTypeUnknown
+		p.currentInstanceOwner = ""
+		p.currentInstanceRegion = ""
+		p.currentInstanceUsers = make(map[string]string)
 		p.result.InPokerWorld = false
 		p.result.LocalPlayerSeat = -1
 		return nil
@@ -218,7 +258,18 @@ func (p *Parser) processPokerEvent(ts time.Time, msg string) error {
 	if m := reNewCommunity.FindStringSubmatch(msg); m != nil {
 		card, err := parseCard(strings.TrimSpace(m[1]))
 		if err != nil {
+			p.currentHand.addAnomaly("BOARD_PARSE_ERROR", "warn", fmt.Sprintf("invalid board token: %s", strings.TrimSpace(m[1])))
 			return nil
+		}
+		if len(p.currentHand.CommunityCards) >= 5 {
+			p.currentHand.addAnomaly("BOARD_OVERFLOW", "warn", "board card count exceeded 5")
+			return nil
+		}
+		for _, existing := range p.currentHand.CommunityCards {
+			if existing.Rank == card.Rank && existing.Suit == card.Suit {
+				p.currentHand.addAnomaly("BOARD_DUPLICATE_CARD", "warn", card.String())
+				return nil
+			}
 		}
 		p.currentHand.CommunityCards = append(p.currentHand.CommunityCards, card)
 		switch len(p.currentHand.CommunityCards) {
@@ -414,13 +465,26 @@ func (p *Parser) ensurePlayer(seat int) {
 func (p *Parser) startNewHand(ts time.Time) {
 	p.handIDCounter++
 	p.currentHand = &Hand{
-		ID:              p.handIDCounter,
-		StartTime:       ts,
-		LocalPlayerSeat: p.result.LocalPlayerSeat,
-		Players:         make(map[int]*PlayerHandInfo),
-		SBSeat:          -1,
-		BBSeat:          -1,
-		WinnerSeat:      -1,
+		ID:               p.handIDCounter,
+		StartTime:        ts,
+		LocalPlayerSeat:  p.result.LocalPlayerSeat,
+		WorldID:          p.currentWorldID,
+		WorldDisplayName: p.currentWorldName,
+		InstanceUID:      p.currentInstanceUID,
+		InstanceType:     p.currentInstanceType,
+		InstanceOwner:    p.currentInstanceOwner,
+		InstanceRegion:   p.currentInstanceRegion,
+		Players:          make(map[int]*PlayerHandInfo),
+		SBSeat:           -1,
+		BBSeat:           -1,
+		WinnerSeat:       -1,
+		StatsEligible:    true,
+	}
+	if len(p.currentInstanceUsers) > 0 {
+		p.currentHand.InstanceUsers = make([]InstanceUser, 0, len(p.currentInstanceUsers))
+		for uid, name := range p.currentInstanceUsers {
+			p.currentHand.InstanceUsers = append(p.currentHand.InstanceUsers, InstanceUser{UserUID: uid, DisplayName: name})
+		}
 	}
 	p.currentStreet = StreetPreFlop
 	p.streetBets = make(map[int]int)
@@ -475,6 +539,12 @@ func (p *Parser) finalizeCurrentHand() {
 
 	h.EndTime = p.lastTimestamp
 	h.IsComplete = len(p.pendingWinners) > 0 || len(h.CommunityCards) > 0
+	if !validBoardCount(len(h.CommunityCards)) {
+		h.addAnomaly("BOARD_COUNT_INVALID", "warn", fmt.Sprintf("board_count=%d", len(h.CommunityCards)))
+	}
+	if h.HasAnomaly {
+		h.StatsEligible = false
+	}
 
 	p.result.Hands = append(p.result.Hands, h)
 
@@ -797,3 +867,96 @@ func (p *Parser) GetHands() []*Hand {
 	return h
 }
 func (p *Parser) GetCurrentHand() *Hand { return p.currentHand }
+
+func (h *Hand) addAnomaly(code, severity, detail string) {
+	if h == nil {
+		return
+	}
+	for _, a := range h.Anomalies {
+		if a.Code == code && a.Detail == detail {
+			return
+		}
+	}
+	h.Anomalies = append(h.Anomalies, HandAnomaly{Code: code, Severity: severity, Detail: detail})
+	h.HasAnomaly = true
+	h.StatsEligible = false
+}
+
+func validBoardCount(n int) bool {
+	switch n {
+	case 0, 3, 4, 5:
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *Parser) setLocation(location string) {
+	location = strings.TrimSpace(location)
+	if location == "" {
+		return
+	}
+	base := location
+	tagsPart := ""
+	if idx := strings.Index(location, "~"); idx >= 0 {
+		base = location[:idx]
+		tagsPart = location[idx+1:]
+	}
+	parts := strings.SplitN(base, ":", 2)
+	worldID := parts[0]
+	if worldID == "" {
+		return
+	}
+	p.currentWorldID = worldID
+	p.currentInstanceUID = location
+
+	tags := parseLocationTags(tagsPart)
+	p.currentInstanceRegion = tags["region"]
+	p.currentInstanceOwner = ""
+	switch {
+	case tags["friends"] != "":
+		p.currentInstanceType = InstanceTypeFriends
+		p.currentInstanceOwner = tags["friends"]
+	case tags["hidden"] != "":
+		p.currentInstanceType = InstanceTypeFriendsPlus
+		p.currentInstanceOwner = tags["hidden"]
+	case tags["private"] != "" && tags["canRequestInvite"] != "":
+		p.currentInstanceType = InstanceTypeInvitePlus
+		p.currentInstanceOwner = tags["private"]
+	case tags["private"] != "":
+		p.currentInstanceType = InstanceTypeInvite
+		p.currentInstanceOwner = tags["private"]
+	case tags["group"] != "":
+		switch strings.ToLower(tags["groupAccessType"]) {
+		case "plus":
+			p.currentInstanceType = InstanceTypeGroupPlus
+		case "public":
+			p.currentInstanceType = InstanceTypeGroupPublic
+		default:
+			p.currentInstanceType = InstanceTypeGroup
+		}
+	default:
+		p.currentInstanceType = InstanceTypePublic
+	}
+}
+
+func parseLocationTags(tagsPart string) map[string]string {
+	out := make(map[string]string)
+	if tagsPart == "" {
+		return out
+	}
+	for _, token := range strings.Split(tagsPart, "~") {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			continue
+		}
+		if open := strings.Index(token, "("); open >= 0 && strings.HasSuffix(token, ")") {
+			key := token[:open]
+			val := token[open+1 : len(token)-1]
+			out[key] = val
+			continue
+		}
+		out[token] = "1"
+	}
+	return out
+}

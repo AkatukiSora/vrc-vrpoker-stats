@@ -59,7 +59,7 @@ func (r *MemoryRepository) ListHands(_ context.Context, f HandFilter) ([]*parser
 	defer r.mu.RUnlock()
 
 	out := make([]*parser.Hand, 0, len(r.hands))
-	for _, entry := range r.hands {
+	for uid, entry := range r.hands {
 		h := entry.hand
 		if h == nil {
 			continue
@@ -78,7 +78,9 @@ func (r *MemoryRepository) ListHands(_ context.Context, f HandFilter) ([]*parser
 				continue
 			}
 		}
-		out = append(out, cloneHand(h))
+		copyHand := cloneHand(h)
+		copyHand.HandUID = uid
+		out = append(out, copyHand)
 	}
 
 	sort.Slice(out, func(i, j int) bool {
@@ -138,6 +140,8 @@ func cloneHand(h *parser.Hand) *parser.Hand {
 	copyHand := *h
 	copyHand.CommunityCards = append([]parser.Card(nil), h.CommunityCards...)
 	copyHand.ActiveSeats = append([]int(nil), h.ActiveSeats...)
+	copyHand.InstanceUsers = append([]parser.InstanceUser(nil), h.InstanceUsers...)
+	copyHand.Anomalies = append([]parser.HandAnomaly(nil), h.Anomalies...)
 	copyHand.Players = make(map[int]*parser.PlayerHandInfo, len(h.Players))
 	for seat, pi := range h.Players {
 		if pi == nil {

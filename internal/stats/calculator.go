@@ -25,6 +25,9 @@ func (c *Calculator) Calculate(hands []*parser.Hand, localSeat int) *Stats {
 		if !h.IsComplete {
 			continue
 		}
+		if !h.IsStatsEligible() {
+			continue
+		}
 
 		handSeat := localSeat
 		if h.LocalPlayerSeat >= 0 {
