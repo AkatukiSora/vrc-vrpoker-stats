@@ -2,6 +2,8 @@
 
 VRChat の VR Poker ワールド向けに、プレイログを集計して統計を確認できるデスクトップアプリです。
 
+このプロジェクトは、AI を活用した実装をベースにしつつ、人間によるレビューと調整を組み合わせて開発しています。
+
 ## ダウンロードして使う（Releases）
 
 1. `https://github.com/AkatukiSora/vrc-vrpoker-ststs/releases` を開きます。
