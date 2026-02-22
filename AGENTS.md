@@ -169,6 +169,7 @@ If these files appear later, treat them as higher-priority local policy.
 - Avoid mixing generated/local runtime artifacts with source changes.
 - Do not commit local logs, screenshots, or SQLite runtime DB files.
 - Use intent-focused messages (why-focused, not raw file lists).
+- If a feature branch has already been merged, create a new branch from latest `origin/master` for follow-up fixes instead of pushing onto the old branch.
 
 ## Subagent Usage
 
