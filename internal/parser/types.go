@@ -47,10 +47,12 @@ const (
 	PosUTG              // Under the Gun
 	PosUTG1             // UTG+1
 	PosMP               // Middle Position
-	PosMP1              // MP+1
+	PosMP1              // Hijack (legacy name: MP+1)
 	PosCO               // Cutoff
 	PosBTN              // Button (Dealer)
 )
+
+const PosHJ Position = PosMP1
 
 func (p Position) String() string {
 	switch p {
@@ -65,7 +67,7 @@ func (p Position) String() string {
 	case PosMP:
 		return "MP"
 	case PosMP1:
-		return "MP+1"
+		return "HJ"
 	case PosCO:
 		return "CO"
 	case PosBTN:

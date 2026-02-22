@@ -266,7 +266,7 @@ func TestLocalPlayerNotBlind(t *testing.T) {
 }
 
 func TestPositionAssignment(t *testing.T) {
-	// 6-handed: SB=0, BB=1, UTG=2, MP=3, CO=4, BTN=5
+	// 6-handed: SB=0, BB=1, UTG=2, HJ=3, CO=4, BTN=5
 	h := &Hand{
 		SBSeat:      0,
 		BBSeat:      1,
@@ -288,7 +288,7 @@ func TestPositionAssignment(t *testing.T) {
 		0: PosSB,
 		1: PosBB,
 		2: PosUTG,
-		3: PosMP,
+		3: PosHJ,
 		4: PosCO,
 		5: PosBTN,
 	}

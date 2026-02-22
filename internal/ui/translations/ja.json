@@ -249,7 +249,7 @@
   "hand_range.filter.utg": "UTG",
   "hand_range.filter.utg1": "UTG+1",
   "hand_range.filter.mp": "MP",
-  "hand_range.filter.mp1": "MP+1",
+  "hand_range.filter.mp1": "HJ",
   "hand_range.filter.co": "CO",
   "hand_range.filter.btn": "BTN",
 

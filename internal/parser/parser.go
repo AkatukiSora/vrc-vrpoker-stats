@@ -783,11 +783,11 @@ func positionOrder(n int) []Position {
 	case 5:
 		return []Position{PosSB, PosBB, PosUTG, PosMP, PosBTN}
 	case 6:
-		return []Position{PosSB, PosBB, PosUTG, PosMP, PosCO, PosBTN}
+		return []Position{PosSB, PosBB, PosUTG, PosHJ, PosCO, PosBTN}
 	case 7:
-		return []Position{PosSB, PosBB, PosUTG, PosUTG1, PosMP, PosCO, PosBTN}
+		return []Position{PosSB, PosBB, PosUTG, PosUTG1, PosHJ, PosCO, PosBTN}
 	case 8:
-		return []Position{PosSB, PosBB, PosUTG, PosUTG1, PosMP, PosMP1, PosCO, PosBTN}
+		return []Position{PosSB, PosBB, PosUTG, PosUTG1, PosMP, PosHJ, PosCO, PosBTN}
 	default:
 		result := make([]Position, n)
 		result[0] = PosSB

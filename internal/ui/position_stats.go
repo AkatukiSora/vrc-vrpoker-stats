@@ -18,8 +18,8 @@ import (
 var positionDisplayOrder = []parser.Position{
 	parser.PosBTN,
 	parser.PosCO,
-	parser.PosMP1,
 	parser.PosMP,
+	parser.PosHJ,
 	parser.PosUTG1,
 	parser.PosUTG,
 	parser.PosBB,

@@ -55,7 +55,7 @@ var positionFilters = []struct {
 	{Key: "utg", LabelKey: "hand_range.filter.utg", LabelFallback: "UTG", Pos: parser.PosUTG},
 	{Key: "utg1", LabelKey: "hand_range.filter.utg1", LabelFallback: "UTG+1", Pos: parser.PosUTG1},
 	{Key: "mp", LabelKey: "hand_range.filter.mp", LabelFallback: "MP", Pos: parser.PosMP},
-	{Key: "mp1", LabelKey: "hand_range.filter.mp1", LabelFallback: "MP+1", Pos: parser.PosMP1},
+	{Key: "mp1", LabelKey: "hand_range.filter.mp1", LabelFallback: "HJ", Pos: parser.PosHJ},
 	{Key: "co", LabelKey: "hand_range.filter.co", LabelFallback: "CO", Pos: parser.PosCO},
 	{Key: "btn", LabelKey: "hand_range.filter.btn", LabelFallback: "BTN", Pos: parser.PosBTN},
 }
