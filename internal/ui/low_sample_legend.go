@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"image/color"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -12,7 +10,7 @@ import (
 )
 
 func newLowSampleLegend(text string) fyne.CanvasObject {
-	mark := canvas.NewText(lang.X("warn_icon.mark", "!"), color.NRGBA{R: 0xFF, G: 0xC1, B: 0x07, A: 0xFF})
+	mark := canvas.NewText(lang.X("warn_icon.mark", "!"), uiWarningColor)
 	mark.TextStyle = fyne.TextStyle{Bold: true}
 	mark.TextSize = theme.TextSize() * 0.95
 

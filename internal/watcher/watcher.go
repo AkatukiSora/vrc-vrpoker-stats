@@ -174,19 +174,26 @@ func (lw *LogWatcher) readNewContent() error {
 	return nil
 }
 
-// DetectLatestLogFile finds the most recent VRChat log file
-func DetectLatestLogFile() (string, error) {
+// collectLogFiles builds the list of all VRChat log files found in known
+// platform-specific directories. It does not sort the results.
+func collectLogFiles() []string {
 	dirs := logDirectories()
 
-	var candidates []string
+	var files []string
 	for _, dir := range dirs {
 		expanded := expandHome(dir)
 		matches, err := filepath.Glob(filepath.Join(expanded, "output_log_*.txt"))
 		if err != nil {
 			continue
 		}
-		candidates = append(candidates, matches...)
+		files = append(files, matches...)
 	}
+	return files
+}
+
+// DetectLatestLogFile finds the most recent VRChat log file
+func DetectLatestLogFile() (string, error) {
+	candidates := collectLogFiles()
 
 	if len(candidates) == 0 {
 		return "", fmt.Errorf("no VRChat log files found in known locations")
@@ -207,17 +214,7 @@ func DetectLatestLogFile() (string, error) {
 
 // DetectAllLogFiles finds all VRChat log files sorted newest first
 func DetectAllLogFiles() ([]string, error) {
-	dirs := logDirectories()
-
-	var candidates []string
-	for _, dir := range dirs {
-		expanded := expandHome(dir)
-		matches, err := filepath.Glob(filepath.Join(expanded, "output_log_*.txt"))
-		if err != nil {
-			continue
-		}
-		candidates = append(candidates, matches...)
-	}
+	candidates := collectLogFiles()
 
 	if len(candidates) == 0 {
 		return nil, fmt.Errorf("no VRChat log files found in known locations")
@@ -245,14 +242,11 @@ func logDirectories() []string {
 		}
 	case "linux":
 		home := os.Getenv("HOME")
-		// Steam Proton (most common for Linux VRChat)
-		protonBase := filepath.Join(home, ".local", "share", "Steam", "steamapps", "compatdata", "438100", "pfx", "drive_c", "users", "steamuser", "AppData", "LocalLow", "VRChat", "VRChat")
 		return []string{
-			protonBase,
+			// Steam Proton (most common for Linux VRChat)
+			filepath.Join(home, ".local", "share", "Steam", "steamapps", "compatdata", "438100", "pfx", "drive_c", "users", "steamuser", "AppData", "LocalLow", "VRChat", "VRChat"),
 			// Flatpak Steam
 			filepath.Join(home, ".var", "app", "com.valvesoftware.Steam", "data", "Steam", "steamapps", "compatdata", "438100", "pfx", "drive_c", "users", "steamuser", "AppData", "LocalLow", "VRChat", "VRChat"),
-			// Alternative paths
-			filepath.Join(home, ".local", "share", "Steam", "steamapps", "compatdata", "438100", "pfx", "drive_c", "users", "steamuser", "AppData", "LocalLow", "VRChat", "VRChat"),
 		}
 	case "darwin":
 		home := os.Getenv("HOME")

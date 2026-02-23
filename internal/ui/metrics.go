@@ -189,10 +189,10 @@ func colorForVPIP(rate float64) color.Color {
 
 func colorForProfit(profit int) color.Color {
 	if profit > 0 {
-		return color.NRGBA{R: 0x4c, G: 0xaf, B: 0x50, A: 0xff}
+		return uiSuccessAccent
 	}
 	if profit < 0 {
-		return color.NRGBA{R: 0xf4, G: 0x43, B: 0x36, A: 0xff}
+		return uiDangerAccent
 	}
 	return theme.ForegroundColor()
 }
@@ -401,59 +401,12 @@ func buildTrendInsights(s *stats.Stats) []trendInsight {
 	return out
 }
 
-var metricRegistry = []MetricDefinition{
-	{
-		ID:             "hands",
-		Label:          "Hands",
-		HelpKey:        "metric.hands.help",
-		HelpFallback:   "Total complete hands included in current stats scope.",
-		MinSamples:     300,
-		GoodSamples:    5000,
-		ShowInOverview: true,
-		ShowInPosition: true,
-		OverviewValue: func(s *stats.Stats) MetricValue {
-			if s == nil {
-				return MetricValue{Display: "0", Color: theme.ForegroundColor(), Opportunities: 0}
-			}
-			return MetricValue{Display: fmt.Sprintf("%d", s.TotalHands), Color: theme.ForegroundColor(), Opportunities: s.TotalHands}
-		},
-		PositionValue: func(ps *stats.PositionStats) MetricValue {
-			if ps == nil {
-				return MetricValue{Display: "0", Color: theme.ForegroundColor(), Opportunities: 0}
-			}
-			return MetricValue{Display: fmt.Sprintf("%d", ps.Hands), Color: theme.ForegroundColor(), Opportunities: ps.Hands}
-		},
-	},
-	{
-		ID:             "profit",
-		Label:          "Total Profit",
-		HelpKey:        "metric.profit.help",
-		HelpFallback:   "Total chips won minus invested chips.",
-		MinSamples:     300,
-		GoodSamples:    5000,
-		ShowInOverview: true,
-		ShowInPosition: true,
-		OverviewValue: func(s *stats.Stats) MetricValue {
-			if s == nil {
-				return MetricValue{Display: "+0", Color: theme.ForegroundColor(), Opportunities: 0}
-			}
-			p := s.TotalPotWon - s.TotalInvested
-			return MetricValue{Display: fmt.Sprintf("%+d", p), Color: colorForProfit(p), Opportunities: s.TotalHands}
-		},
-		PositionValue: func(ps *stats.PositionStats) MetricValue {
-			if ps == nil {
-				return MetricValue{Display: "+0", Color: theme.ForegroundColor(), Opportunities: 0}
-			}
-			p := ps.PotWon - ps.Invested
-			return MetricValue{Display: fmt.Sprintf("%+d", p), Color: colorForProfit(p), Opportunities: ps.Hands}
-		},
-	},
-}
+var metricRegistry = buildMetricRegistry()
 
-func addStatsMetricDefinition(id stats.MetricID, label, helpKey, helpFallback string, showPosition bool) {
+func statsMetricDef(id stats.MetricID, label, helpKey, helpFallback string, showPosition bool) MetricDefinition {
 	idCopy := id
 	th := thresholdForMetricID(string(id))
-	metricRegistry = append(metricRegistry, MetricDefinition{
+	return MetricDefinition{
 		ID:             string(id),
 		Label:          label,
 		HelpKey:        helpKey,
@@ -490,7 +443,89 @@ func addStatsMetricDefinition(id stats.MetricID, label, helpKey, helpFallback st
 				return MetricValue{Display: "-", Color: theme.DisabledColor(), Opportunities: 0}
 			}
 		},
-	})
+	}
+}
+
+func buildMetricRegistry() []MetricDefinition {
+	return []MetricDefinition{
+		{
+			ID:             "hands",
+			Label:          "Hands",
+			HelpKey:        "metric.hands.help",
+			HelpFallback:   "Total complete hands included in current stats scope.",
+			MinSamples:     300,
+			GoodSamples:    5000,
+			ShowInOverview: true,
+			ShowInPosition: true,
+			OverviewValue: func(s *stats.Stats) MetricValue {
+				if s == nil {
+					return MetricValue{Display: "0", Color: theme.ForegroundColor(), Opportunities: 0}
+				}
+				return MetricValue{Display: fmt.Sprintf("%d", s.TotalHands), Color: theme.ForegroundColor(), Opportunities: s.TotalHands}
+			},
+			PositionValue: func(ps *stats.PositionStats) MetricValue {
+				if ps == nil {
+					return MetricValue{Display: "0", Color: theme.ForegroundColor(), Opportunities: 0}
+				}
+				return MetricValue{Display: fmt.Sprintf("%d", ps.Hands), Color: theme.ForegroundColor(), Opportunities: ps.Hands}
+			},
+		},
+		{
+			ID:             "profit",
+			Label:          "Total Profit",
+			HelpKey:        "metric.profit.help",
+			HelpFallback:   "Total chips won minus invested chips.",
+			MinSamples:     300,
+			GoodSamples:    5000,
+			ShowInOverview: true,
+			ShowInPosition: true,
+			OverviewValue: func(s *stats.Stats) MetricValue {
+				if s == nil {
+					return MetricValue{Display: "+0", Color: theme.ForegroundColor(), Opportunities: 0}
+				}
+				p := s.TotalPotWon - s.TotalInvested
+				return MetricValue{Display: fmt.Sprintf("%+d", p), Color: colorForProfit(p), Opportunities: s.TotalHands}
+			},
+			PositionValue: func(ps *stats.PositionStats) MetricValue {
+				if ps == nil {
+					return MetricValue{Display: "+0", Color: theme.ForegroundColor(), Opportunities: 0}
+				}
+				p := ps.PotWon - ps.Invested
+				return MetricValue{Display: fmt.Sprintf("%+d", p), Color: colorForProfit(p), Opportunities: ps.Hands}
+			},
+		},
+		// Preflop participation and opening
+		statsMetricDef(stats.MetricVPIP, "VPIP", "metric.vpip.help", "Voluntarily Put Money In Pot. Preflop participation frequency.", true),
+		statsMetricDef(stats.MetricPFR, "PFR", "metric.pfr.help", "Preflop raise frequency.", true),
+		statsMetricDef(stats.MetricGap, "VPIP-PFR Gap", "metric.gap.help", "VPIP minus PFR. Larger gap implies more passive preflop entries.", false),
+		statsMetricDef(stats.MetricRFI, "RFI", "metric.rfi.help", "Raise First In frequency.", false),
+		statsMetricDef(stats.MetricSteal, "Steal Attempt", "metric.steal.help", "Open-raise attempt from steal positions when folded to you.", false),
+		// 3-bet/4-bet and preflop pressure
+		statsMetricDef(stats.MetricThreeBet, "3Bet", "metric.three_bet.help", "3-bet frequency when a 3-bet opportunity is present.", true),
+		statsMetricDef(stats.MetricThreeBetVsSteal, "3Bet vs Steal", "metric.three_bet_vs_steal.help", "3-bet frequency from blinds versus steal opens.", false),
+		statsMetricDef(stats.MetricFoldToThreeBet, "Fold to 3Bet", "metric.fold_to_three_bet.help", "Fold frequency when facing a 3-bet after opening.", true),
+		statsMetricDef(stats.MetricFourBet, "4Bet", "metric.four_bet.help", "4-bet frequency when facing a 3-bet.", false),
+		statsMetricDef(stats.MetricSqueeze, "Squeeze", "metric.squeeze.help", "Squeeze frequency after open + caller before you act.", false),
+		// Blind defense
+		statsMetricDef(stats.MetricFoldToSteal, "Fold to Steal", "metric.fold_to_steal.help", "Fold frequency in blinds versus steal attempts.", false),
+		statsMetricDef(stats.MetricFoldBBToSteal, "Fold BB to Steal", "metric.fold_bb_to_steal.help", "Fold frequency from BB versus steal opens.", false),
+		statsMetricDef(stats.MetricFoldSBToSteal, "Fold SB to Steal", "metric.fold_sb_to_steal.help", "Fold frequency from SB versus steal opens.", false),
+		// C-bet and response
+		statsMetricDef(stats.MetricFlopCBet, "Flop CBet", "metric.flop_cbet.help", "Continuation bet frequency on flop as preflop aggressor.", false),
+		statsMetricDef(stats.MetricTurnCBet, "Turn CBet", "metric.turn_cbet.help", "Continuation bet frequency on turn.", false),
+		statsMetricDef(stats.MetricDelayedCBet, "Delayed CBet", "metric.delayed_cbet.help", "Delayed continuation bet frequency (check flop, bet turn).", false),
+		statsMetricDef(stats.MetricFoldToFlopCBet, "Fold to Flop CBet", "metric.fold_to_flop_cbet.help", "Fold frequency when facing flop c-bet.", false),
+		statsMetricDef(stats.MetricFoldToTurnCBet, "Fold to Turn CBet", "metric.fold_to_turn_cbet.help", "Fold frequency when facing turn c-bet.", false),
+		// Showdown and postflop profile
+		statsMetricDef(stats.MetricWTSD, "WTSD", "metric.wtsd.help", "Went to showdown after seeing flop.", false),
+		statsMetricDef(stats.MetricWSD, "W$SD", "metric.w_sd.help", "Won money at showdown.", true),
+		statsMetricDef(stats.MetricWWSF, "WWSF", "metric.wwsf.help", "Won when saw flop.", false),
+		statsMetricDef(stats.MetricAFq, "AFq", "metric.afq.help", "Aggression frequency: (bet+raise)/(actions postflop).", false),
+		statsMetricDef(stats.MetricAF, "AF", "metric.af.help", "Aggression factor: (bet+raise)/call.", false),
+		// Result profile
+		statsMetricDef(stats.MetricWonWithoutSD, "Won without SD", "metric.won_without_sd.help", "Won hand without reaching showdown.", false),
+		statsMetricDef(stats.MetricBBPer100, "bb/100", "metric.bb_per_100.help", "Net big blinds won per 100 hands.", false),
+	}
 }
 
 func vRateOrZero(s *stats.Stats, id stats.MetricID) float64 {
@@ -502,43 +537,4 @@ func vRateOrZero(s *stats.Stats, id stats.MetricID) float64 {
 		return 0
 	}
 	return v.Rate
-}
-
-func init() {
-	// Preflop participation and opening
-	addStatsMetricDefinition(stats.MetricVPIP, "VPIP", "metric.vpip.help", "Voluntarily Put Money In Pot. Preflop participation frequency.", true)
-	addStatsMetricDefinition(stats.MetricPFR, "PFR", "metric.pfr.help", "Preflop raise frequency.", true)
-	addStatsMetricDefinition(stats.MetricGap, "VPIP-PFR Gap", "metric.gap.help", "VPIP minus PFR. Larger gap implies more passive preflop entries.", false)
-	addStatsMetricDefinition(stats.MetricRFI, "RFI", "metric.rfi.help", "Raise First In frequency.", false)
-	addStatsMetricDefinition(stats.MetricSteal, "Steal Attempt", "metric.steal.help", "Open-raise attempt from steal positions when folded to you.", false)
-
-	// 3-bet/4-bet and preflop pressure
-	addStatsMetricDefinition(stats.MetricThreeBet, "3Bet", "metric.three_bet.help", "3-bet frequency when a 3-bet opportunity is present.", true)
-	addStatsMetricDefinition(stats.MetricThreeBetVsSteal, "3Bet vs Steal", "metric.three_bet_vs_steal.help", "3-bet frequency from blinds versus steal opens.", false)
-	addStatsMetricDefinition(stats.MetricFoldToThreeBet, "Fold to 3Bet", "metric.fold_to_three_bet.help", "Fold frequency when facing a 3-bet after opening.", true)
-	addStatsMetricDefinition(stats.MetricFourBet, "4Bet", "metric.four_bet.help", "4-bet frequency when facing a 3-bet.", false)
-	addStatsMetricDefinition(stats.MetricSqueeze, "Squeeze", "metric.squeeze.help", "Squeeze frequency after open + caller before you act.", false)
-
-	// Blind defense
-	addStatsMetricDefinition(stats.MetricFoldToSteal, "Fold to Steal", "metric.fold_to_steal.help", "Fold frequency in blinds versus steal attempts.", false)
-	addStatsMetricDefinition(stats.MetricFoldBBToSteal, "Fold BB to Steal", "metric.fold_bb_to_steal.help", "Fold frequency from BB versus steal opens.", false)
-	addStatsMetricDefinition(stats.MetricFoldSBToSteal, "Fold SB to Steal", "metric.fold_sb_to_steal.help", "Fold frequency from SB versus steal opens.", false)
-
-	// C-bet and response
-	addStatsMetricDefinition(stats.MetricFlopCBet, "Flop CBet", "metric.flop_cbet.help", "Continuation bet frequency on flop as preflop aggressor.", false)
-	addStatsMetricDefinition(stats.MetricTurnCBet, "Turn CBet", "metric.turn_cbet.help", "Continuation bet frequency on turn.", false)
-	addStatsMetricDefinition(stats.MetricDelayedCBet, "Delayed CBet", "metric.delayed_cbet.help", "Delayed continuation bet frequency (check flop, bet turn).", false)
-	addStatsMetricDefinition(stats.MetricFoldToFlopCBet, "Fold to Flop CBet", "metric.fold_to_flop_cbet.help", "Fold frequency when facing flop c-bet.", false)
-	addStatsMetricDefinition(stats.MetricFoldToTurnCBet, "Fold to Turn CBet", "metric.fold_to_turn_cbet.help", "Fold frequency when facing turn c-bet.", false)
-
-	// Showdown and postflop profile
-	addStatsMetricDefinition(stats.MetricWTSD, "WTSD", "metric.wtsd.help", "Went to showdown after seeing flop.", false)
-	addStatsMetricDefinition(stats.MetricWSD, "W$SD", "metric.w_sd.help", "Won money at showdown.", true)
-	addStatsMetricDefinition(stats.MetricWWSF, "WWSF", "metric.wwsf.help", "Won when saw flop.", false)
-	addStatsMetricDefinition(stats.MetricAFq, "AFq", "metric.afq.help", "Aggression frequency: (bet+raise)/(actions postflop).", false)
-	addStatsMetricDefinition(stats.MetricAF, "AF", "metric.af.help", "Aggression factor: (bet+raise)/call.", false)
-
-	// Result profile
-	addStatsMetricDefinition(stats.MetricWonWithoutSD, "Won without SD", "metric.won_without_sd.help", "Won hand without reaching showdown.", false)
-	addStatsMetricDefinition(stats.MetricBBPer100, "bb/100", "metric.bb_per_100.help", "Net big blinds won per 100 hands.", false)
 }

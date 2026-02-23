@@ -12,11 +12,11 @@ import (
 )
 
 type SettingsTab struct {
-	LogPath         string
-	OnPathChange    func(string)
-	OnMetricsChange func()
-	MetricState     *MetricVisibilityState
-	Metadata        AppMetadata
+	logPath         string
+	onPathChange    func(string)
+	onMetricsChange func()
+	metricState     *MetricVisibilityState
+	metadata        AppMetadata
 	win             fyne.Window
 }
 
@@ -32,11 +32,11 @@ func NewSettingsTab(
 		metricState = NewMetricVisibilityState()
 	}
 	st := &SettingsTab{
-		LogPath:         currentPath,
-		OnPathChange:    onPathChange,
-		OnMetricsChange: onMetricsChange,
-		MetricState:     metricState,
-		Metadata:        metadata,
+		logPath:         currentPath,
+		onPathChange:    onPathChange,
+		onMetricsChange: onMetricsChange,
+		metricState:     metricState,
+		metadata:        metadata,
 		win:             win,
 	}
 	return st.build()
@@ -46,7 +46,7 @@ func (st *SettingsTab) buildLogSourceSection() fyne.CanvasObject {
 	pathLabel := widget.NewLabel(lang.X("settings.log_path_label", "VRChat Log File Path:"))
 	pathEntry := widget.NewEntry()
 	pathEntry.SetPlaceHolder(lang.X("settings.log_path_placeholder", "Path to VRChat output_log_*.txt"))
-	pathEntry.SetText(st.LogPath)
+	pathEntry.SetText(st.logPath)
 
 	browseBtn := widget.NewButton(lang.X("settings.browse", "Browse..."), func() {
 		dialog.ShowFileOpen(func(f fyne.URIReadCloser, err error) {
@@ -56,18 +56,18 @@ func (st *SettingsTab) buildLogSourceSection() fyne.CanvasObject {
 			f.Close()
 			path := f.URI().Path()
 			pathEntry.SetText(path)
-			st.LogPath = path
-			if st.OnPathChange != nil {
-				st.OnPathChange(path)
+			st.logPath = path
+			if st.onPathChange != nil {
+				st.onPathChange(path)
 			}
 		}, st.win)
 	})
 
 	applyBtn := widget.NewButton(lang.X("settings.apply", "Apply"), func() {
 		path := pathEntry.Text
-		st.LogPath = path
-		if st.OnPathChange != nil {
-			st.OnPathChange(path)
+		st.logPath = path
+		if st.onPathChange != nil {
+			st.onPathChange(path)
 		}
 	})
 	applyBtn.Importance = widget.HighImportance
@@ -103,11 +103,11 @@ func (st *SettingsTab) buildMetricsSection() fyne.CanvasObject {
 	refreshMetrics := func() {
 		suppressMetricsNotify = true
 		for metricID, chk := range checks {
-			chk.SetChecked(st.MetricState.IsVisible(metricID))
+			chk.SetChecked(st.metricState.IsVisible(metricID))
 		}
 		suppressMetricsNotify = false
-		if st.OnMetricsChange != nil {
-			st.OnMetricsChange()
+		if st.onMetricsChange != nil {
+			st.onMetricsChange()
 		}
 	}
 
@@ -115,7 +115,7 @@ func (st *SettingsTab) buildMetricsSection() fyne.CanvasObject {
 	for _, preset := range presets {
 		preset := preset
 		presetButtons = append(presetButtons, widget.NewButton(preset.ButtonText, func() {
-			st.MetricState.ApplyPreset(preset)
+			st.metricState.ApplyPreset(preset)
 			refreshMetrics()
 		}))
 	}
@@ -143,14 +143,14 @@ func (st *SettingsTab) buildMetricsSection() fyne.CanvasObject {
 		for _, metric := range metrics {
 			metric := metric
 			check := widget.NewCheck(metric.Label, nil)
-			check.SetChecked(st.MetricState.IsVisible(metric.ID))
+			check.SetChecked(st.metricState.IsVisible(metric.ID))
 			check.OnChanged = func(checked bool) {
 				if suppressMetricsNotify {
 					return
 				}
-				st.MetricState.SetVisible(metric.ID, checked)
-				if st.OnMetricsChange != nil {
-					st.OnMetricsChange()
+				st.metricState.SetVisible(metric.ID, checked)
+				if st.onMetricsChange != nil {
+					st.onMetricsChange()
 				}
 			}
 			checks[metric.ID] = check
@@ -174,7 +174,7 @@ func (st *SettingsTab) buildMetricsSection() fyne.CanvasObject {
 }
 
 func (st *SettingsTab) buildAboutSection() fyne.CanvasObject {
-	version := st.Metadata.Version
+	version := st.metadata.Version
 	if version == "" {
 		version = "dev"
 	}
@@ -188,9 +188,9 @@ func (st *SettingsTab) buildAboutSection() fyne.CanvasObject {
 		fyne.TextStyle{Bold: true},
 	)
 
-	repoURL := st.Metadata.RepositoryURL
+	repoURL := st.metadata.RepositoryURL
 	if repoURL == "" {
-		repoURL = "https://github.com/AkatukiSora/vrc-vrpoker-stats"
+		repoURL = "https://github.com/AkatukiSora/vrc-vrpoker-ststs"
 	}
 	repoLabel := widget.NewLabel(lang.X("settings.about.repository", "Repository: {{.URL}}", map[string]any{"URL": repoURL}))
 	repoLabel.Wrapping = fyne.TextWrapWord
