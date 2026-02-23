@@ -124,7 +124,7 @@ func applyTabFilter(hands []*parser.Hand, f TabFilterState) []*parser.Hand {
 			if !f.From.IsZero() && t.Before(f.From) {
 				continue
 			}
-			if !f.To.IsZero() && !t.Before(f.To) {
+			if !f.To.IsZero() && t.After(f.To.Truncate(24*time.Hour).Add(24*time.Hour-time.Second)) {
 				continue
 			}
 			out = append(out, h)
