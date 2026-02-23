@@ -321,7 +321,10 @@ func (r *SQLiteRepository) ListHands(ctx context.Context, f HandFilter) ([]*pars
 	}
 	defer rows.Close()
 
-	out := make([]*parser.Hand, 0)
+	// First pass: collect all hand headers; preserve insertion order for later.
+	uids := make([]string, 0)
+	byUID := make(map[string]*parser.Hand)
+
 	for rows.Next() {
 		var uid string
 		var startStr, endStr string
@@ -364,7 +367,6 @@ func (r *SQLiteRepository) ListHands(ctx context.Context, f HandFilter) ([]*pars
 		endTime, _ := time.Parse(time.RFC3339Nano, endStr)
 
 		h := &parser.Hand{
-			ID:               0,
 			HandUID:          uid,
 			StartTime:        startTime,
 			EndTime:          endTime,
@@ -386,122 +388,180 @@ func (r *SQLiteRepository) ListHands(ctx context.Context, f HandFilter) ([]*pars
 			WinType:          winType,
 			Players:          make(map[int]*parser.PlayerHandInfo),
 		}
+		uids = append(uids, uid)
+		byUID[uid] = h
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(uids) == 0 {
+		return nil, nil
+	}
 
-		if err := r.loadHandChildren(ctx, uid, h); err != nil {
-			return nil, err
-		}
+	// Second pass: batch-load all child tables (5 queries total regardless of N).
+	if err := r.loadAllHandChildren(ctx, uids, byUID); err != nil {
+		return nil, err
+	}
 
+	// Apply optional LocalSeat post-filter and assemble result in original order.
+	out := make([]*parser.Hand, 0, len(uids))
+	for _, uid := range uids {
+		h := byUID[uid]
 		if f.LocalSeat != nil {
 			if _, ok := h.Players[*f.LocalSeat]; !ok {
 				continue
 			}
 		}
-
 		out = append(out, h)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 	return out, nil
 }
 
-func (r *SQLiteRepository) loadHandChildren(ctx context.Context, uid string, h *parser.Hand) error {
-	boardRows, err := r.db.QueryContext(ctx, `SELECT card_index, rank, suit FROM hand_board_cards WHERE hand_uid = ? ORDER BY card_index ASC`, uid)
+// inClause builds a SQL "IN (?, ?, ...)" placeholder string and returns the
+// UIDs as a []any slice suitable for use as variadic query arguments.
+func inClause(uids []string) (string, []any) {
+	placeholders := make([]byte, 0, len(uids)*3)
+	args := make([]any, len(uids))
+	for i, uid := range uids {
+		if i > 0 {
+			placeholders = append(placeholders, ',', '?')
+		} else {
+			placeholders = append(placeholders, '?')
+		}
+		args[i] = uid
+	}
+	return "(" + string(placeholders) + ")", args
+}
+
+// loadAllHandChildren batch-loads board cards, players, hole cards, actions, and
+// anomalies for the given set of hand UIDs using 5 queries (one per child table).
+// Results are distributed back into the byUID map.
+func (r *SQLiteRepository) loadAllHandChildren(ctx context.Context, uids []string, byUID map[string]*parser.Hand) error {
+	in, args := inClause(uids)
+
+	// Board cards
+	boardRows, err := r.db.QueryContext(ctx,
+		`SELECT hand_uid, card_index, rank, suit FROM hand_board_cards WHERE hand_uid IN `+in+` ORDER BY hand_uid ASC, card_index ASC`, args...)
 	if err != nil {
 		return err
 	}
 	for boardRows.Next() {
+		var uid string
 		var idx int
 		var rank, suit string
-		if err := boardRows.Scan(&idx, &rank, &suit); err != nil {
+		if err := boardRows.Scan(&uid, &idx, &rank, &suit); err != nil {
 			boardRows.Close()
 			return err
 		}
-		h.CommunityCards = append(h.CommunityCards, parser.Card{Rank: rank, Suit: suit})
+		if h, ok := byUID[uid]; ok {
+			h.CommunityCards = append(h.CommunityCards, parser.Card{Rank: rank, Suit: suit})
+		}
 	}
 	boardRows.Close()
 
-	playerRows, err := r.db.QueryContext(ctx, `SELECT seat_id, position, showed_down, won, pot_won, vpip, pfr, three_bet, fold_to_3bet, folded_pf FROM hand_players WHERE hand_uid = ?`, uid)
+	// Players
+	playerRows, err := r.db.QueryContext(ctx,
+		`SELECT hand_uid, seat_id, position, showed_down, won, pot_won, vpip, pfr, three_bet, fold_to_3bet, folded_pf
+		 FROM hand_players WHERE hand_uid IN `+in, args...)
 	if err != nil {
 		return err
 	}
 	for playerRows.Next() {
+		var uid string
 		var seat, pos int
 		var showedDown, won, vpip, pfr, threeBet, foldTo3Bet, foldedPF int
 		var potWon int
-		if err := playerRows.Scan(&seat, &pos, &showedDown, &won, &potWon, &vpip, &pfr, &threeBet, &foldTo3Bet, &foldedPF); err != nil {
+		if err := playerRows.Scan(&uid, &seat, &pos, &showedDown, &won, &potWon, &vpip, &pfr, &threeBet, &foldTo3Bet, &foldedPF); err != nil {
 			playerRows.Close()
 			return err
 		}
-		h.Players[seat] = &parser.PlayerHandInfo{
-			SeatID:     seat,
-			Position:   parser.Position(pos),
-			ShowedDown: showedDown == 1,
-			Won:        won == 1,
-			PotWon:     potWon,
-			VPIP:       vpip == 1,
-			PFR:        pfr == 1,
-			ThreeBet:   threeBet == 1,
-			FoldTo3Bet: foldTo3Bet == 1,
-			FoldedPF:   foldedPF == 1,
+		if h, ok := byUID[uid]; ok {
+			h.Players[seat] = &parser.PlayerHandInfo{
+				SeatID:     seat,
+				Position:   parser.Position(pos),
+				ShowedDown: showedDown == 1,
+				Won:        won == 1,
+				PotWon:     potWon,
+				VPIP:       vpip == 1,
+				PFR:        pfr == 1,
+				ThreeBet:   threeBet == 1,
+				FoldTo3Bet: foldTo3Bet == 1,
+				FoldedPF:   foldedPF == 1,
+			}
+			h.ActiveSeats = append(h.ActiveSeats, seat)
 		}
-		h.ActiveSeats = append(h.ActiveSeats, seat)
 	}
 	playerRows.Close()
 
-	holeRows, err := r.db.QueryContext(ctx, `SELECT seat_id, card_index, rank, suit FROM hand_hole_cards WHERE hand_uid = ? ORDER BY seat_id ASC, card_index ASC`, uid)
+	// Hole cards
+	holeRows, err := r.db.QueryContext(ctx,
+		`SELECT hand_uid, seat_id, card_index, rank, suit FROM hand_hole_cards
+		 WHERE hand_uid IN `+in+` ORDER BY hand_uid ASC, seat_id ASC, card_index ASC`, args...)
 	if err != nil {
 		return err
 	}
 	for holeRows.Next() {
+		var uid string
 		var seat, idx int
 		var rank, suit string
-		if err := holeRows.Scan(&seat, &idx, &rank, &suit); err != nil {
+		if err := holeRows.Scan(&uid, &seat, &idx, &rank, &suit); err != nil {
 			holeRows.Close()
 			return err
 		}
-		if pi, ok := h.Players[seat]; ok {
-			pi.HoleCards = append(pi.HoleCards, parser.Card{Rank: rank, Suit: suit})
+		if h, ok := byUID[uid]; ok {
+			if pi, ok := h.Players[seat]; ok {
+				pi.HoleCards = append(pi.HoleCards, parser.Card{Rank: rank, Suit: suit})
+			}
 		}
 	}
 	holeRows.Close()
 
-	actionRows, err := r.db.QueryContext(ctx, `SELECT seat_id, action_index, timestamp, street, action, amount FROM hand_actions WHERE hand_uid = ? ORDER BY seat_id ASC, action_index ASC`, uid)
+	// Actions
+	actionRows, err := r.db.QueryContext(ctx,
+		`SELECT hand_uid, seat_id, action_index, timestamp, street, action, amount FROM hand_actions
+		 WHERE hand_uid IN `+in+` ORDER BY hand_uid ASC, seat_id ASC, action_index ASC`, args...)
 	if err != nil {
 		return err
 	}
 	for actionRows.Next() {
+		var uid string
 		var seat, idx int
 		var tsStr string
 		var street, action, amount int
-		if err := actionRows.Scan(&seat, &idx, &tsStr, &street, &action, &amount); err != nil {
+		if err := actionRows.Scan(&uid, &seat, &idx, &tsStr, &street, &action, &amount); err != nil {
 			actionRows.Close()
 			return err
 		}
 		ts, _ := time.Parse(time.RFC3339Nano, tsStr)
-		if pi, ok := h.Players[seat]; ok {
-			pi.Actions = append(pi.Actions, parser.PlayerAction{
-				Timestamp: ts,
-				PlayerID:  seat,
-				Street:    parser.Street(street),
-				Action:    parser.ActionType(action),
-				Amount:    amount,
-			})
+		if h, ok := byUID[uid]; ok {
+			if pi, ok := h.Players[seat]; ok {
+				pi.Actions = append(pi.Actions, parser.PlayerAction{
+					Timestamp: ts,
+					PlayerID:  seat,
+					Street:    parser.Street(street),
+					Action:    parser.ActionType(action),
+					Amount:    amount,
+				})
+			}
 		}
 	}
 	actionRows.Close()
 
-	anomRows, err := r.db.QueryContext(ctx, `SELECT code, severity, detail FROM hand_anomalies WHERE hand_uid = ? ORDER BY anomaly_index ASC`, uid)
+	// Anomalies
+	anomRows, err := r.db.QueryContext(ctx,
+		`SELECT hand_uid, code, severity, detail FROM hand_anomalies WHERE hand_uid IN `+in+` ORDER BY hand_uid ASC, anomaly_index ASC`, args...)
 	if err != nil {
 		return err
 	}
 	for anomRows.Next() {
-		var code, severity, detail string
-		if err := anomRows.Scan(&code, &severity, &detail); err != nil {
+		var uid, code, severity, detail string
+		if err := anomRows.Scan(&uid, &code, &severity, &detail); err != nil {
 			anomRows.Close()
 			return err
 		}
-		h.Anomalies = append(h.Anomalies, parser.HandAnomaly{Code: code, Severity: severity, Detail: detail})
+		if h, ok := byUID[uid]; ok {
+			h.Anomalies = append(h.Anomalies, parser.HandAnomaly{Code: code, Severity: severity, Detail: detail})
+		}
 	}
 	anomRows.Close()
 
@@ -509,17 +569,19 @@ func (r *SQLiteRepository) loadHandChildren(ctx context.Context, uid string, h *
 }
 
 func (r *SQLiteRepository) CountHands(ctx context.Context, f HandFilter) (int, error) {
+	var query string
+	var args []any
 	if f.LocalSeat != nil {
-		hands, err := r.ListHands(ctx, f)
-		if err != nil {
-			return 0, err
-		}
-		return len(hands), nil
+		// Join hand_players to filter by local seat without loading all hand children.
+		baseWhere, baseArgs := buildHandsFilterWhere(f)
+		query = `SELECT COUNT(*) FROM hands` + baseWhere +
+			` AND EXISTS (SELECT 1 FROM hand_players WHERE hand_players.hand_uid = hands.hand_uid AND hand_players.seat_id = ?)`
+		args = append(baseArgs, *f.LocalSeat)
+	} else {
+		where, whereArgs := buildHandsFilterWhere(f)
+		query = `SELECT COUNT(*) FROM hands` + where
+		args = whereArgs
 	}
-
-	query := `SELECT COUNT(*) FROM hands`
-	where, args := buildHandsFilterWhere(f)
-	query += where
 
 	var count int
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {

@@ -55,7 +55,7 @@ var positionFilters = []struct {
 	{Key: "utg", LabelKey: "hand_range.filter.utg", LabelFallback: "UTG", Pos: parser.PosUTG},
 	{Key: "utg1", LabelKey: "hand_range.filter.utg1", LabelFallback: "UTG+1", Pos: parser.PosUTG1},
 	{Key: "mp", LabelKey: "hand_range.filter.mp", LabelFallback: "MP", Pos: parser.PosMP},
-	{Key: "mp1", LabelKey: "hand_range.filter.mp1", LabelFallback: "HJ", Pos: parser.PosHJ},
+	{Key: "hj", LabelKey: "hand_range.filter.hj", LabelFallback: "HJ", Pos: parser.PosHJ},
 	{Key: "co", LabelKey: "hand_range.filter.co", LabelFallback: "CO", Pos: parser.PosCO},
 	{Key: "btn", LabelKey: "hand_range.filter.btn", LabelFallback: "BTN", Pos: parser.PosBTN},
 }
@@ -400,10 +400,6 @@ func (r *rangeCellRenderer) Objects() []fyne.CanvasObject {
 
 func (r *rangeCellRenderer) Destroy() {}
 
-func makeRangeCell(cell *stats.HandRangeCell, posIdx int, selectedCombo string, onSelect func(*stats.HandRangeCell)) fyne.CanvasObject {
-	return newRangeCellWidget(cell, posIdx, selectedCombo, onSelect)
-}
-
 func buildRangeGrid(s *stats.Stats, posIdx int, selectedCombo string, onSelect func(*stats.HandRangeCell)) fyne.CanvasObject {
 	rankLabels := stats.RankOrder
 	items := make([]fyne.CanvasObject, 0, 14*14)
@@ -436,7 +432,7 @@ func buildRangeGrid(s *stats.Stats, posIdx int, selectedCombo string, onSelect f
 			if s != nil && s.HandRange != nil {
 				cell = s.HandRange.Cells[row][col]
 			}
-			items = append(items, makeRangeCell(cell, posIdx, selectedCombo, onSelect))
+			items = append(items, newRangeCellWidget(cell, posIdx, selectedCombo, onSelect))
 		}
 	}
 
@@ -517,10 +513,82 @@ func buildPositionFilterBar(currentPosIdx int, onSelect func(int)) fyne.CanvasOb
 	return container.NewHScroll(container.NewHBox(buttons...))
 }
 
-func withMinHeight(obj fyne.CanvasObject, minHeight float32) fyne.CanvasObject {
-	lock := canvas.NewRectangle(color.Transparent)
-	lock.SetMinSize(fyne.NewSize(0, minHeight))
-	return container.NewStack(lock, obj)
+// handRangeView holds mutable render state for the hand-range tab so that
+// the rebuild logic can be split into named methods instead of a closure.
+type handRangeView struct {
+	s             *stats.Stats
+	state         *HandRangeViewState
+	currentPosIdx int
+	selected      *stats.HandRangeCell
+
+	leftWrap  *fyne.Container
+	rightWrap *fyne.Container
+	topWrap   *fyne.Container
+}
+
+func (v *handRangeView) rebuild() {
+	selectedCombo := ""
+	if v.selected != nil {
+		selectedCombo = comboDisplayName(v.selected)
+	}
+
+	filterBar := withMinHeight(buildPositionFilterBar(v.currentPosIdx, func(nextPos int) {
+		v.currentPosIdx = nextPos
+		v.state.PositionKey = positionFilters[nextPos].Key
+		v.selected = nil
+		v.state.SelectedCombo = ""
+		v.rebuild()
+	}), 36)
+
+	var rightControl fyne.CanvasObject
+	if v.selected != nil {
+		clearBtn := widget.NewButtonWithIcon(lang.X("hand_range.show_all", "Show All Range"), theme.ViewRefreshIcon(), func() {
+			v.selected = nil
+			v.state.SelectedCombo = ""
+			v.rebuild()
+		})
+		clearBtn.Importance = widget.HighImportance
+		rightControl = clearBtn
+	}
+
+	positionRow := container.NewBorder(nil, nil,
+		widget.NewLabelWithStyle(lang.X("hand_range.position_label", "Position:"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		rightControl,
+		filterBar,
+	)
+	v.topWrap.Objects = []fyne.CanvasObject{newSectionCard(positionRow)}
+	v.topWrap.Refresh()
+
+	v.rebuildGrid(selectedCombo)
+	v.rebuildRightPanel()
+}
+
+func (v *handRangeView) rebuildGrid(selectedCombo string) {
+	grid := buildRangeGrid(v.s, v.currentPosIdx, selectedCombo, func(cell *stats.HandRangeCell) {
+		v.selected = cell
+		v.state.SelectedCombo = comboDisplayName(cell)
+		v.rebuild()
+	})
+	gridSize := grid.MinSize()
+	gridFixed := container.NewWithoutLayout()
+	gridLock := canvas.NewRectangle(color.Transparent)
+	gridLock.SetMinSize(gridSize)
+	gridLock.Resize(gridSize)
+	gridFixed.Add(gridLock)
+	grid.Move(fyne.NewPos(0, 0))
+	grid.Resize(gridSize)
+	gridFixed.Add(grid)
+
+	v.leftWrap.Objects = []fyne.CanvasObject{container.NewScroll(gridFixed)}
+	v.leftWrap.Refresh()
+}
+
+func (v *handRangeView) rebuildRightPanel() {
+	rightMin := canvas.NewRectangle(color.Transparent)
+	rightMin.SetMinSize(fyne.NewSize(360, 0))
+	rightContent := container.NewPadded(buildRightPanel(v.s.HandRange, v.currentPosIdx, v.selected))
+	v.rightWrap.Objects = []fyne.CanvasObject{container.NewStack(rightMin, rightContent)}
+	v.rightWrap.Refresh()
 }
 
 // NewHandRangeTab renders a GTO-style mixed-strategy range view.
@@ -541,81 +609,28 @@ func NewHandRangeTab(s *stats.Stats, _ fyne.Window, state *HandRangeViewState) f
 			}
 		}
 	}
-	selected := findCellByCombo(s.HandRange, state.SelectedCombo)
 
-	leftWrap := container.NewMax()
-	rightWrap := container.NewMax()
-	topWrap := container.NewMax()
-
-	var rebuild func()
-	rebuild = func() {
-		selectedCombo := ""
-		if selected != nil {
-			selectedCombo = comboDisplayName(selected)
-		}
-
-		filterBar := withMinHeight(buildPositionFilterBar(currentPosIdx, func(nextPos int) {
-			currentPosIdx = nextPos
-			state.PositionKey = positionFilters[nextPos].Key
-			selected = nil
-			state.SelectedCombo = ""
-			rebuild()
-		}), 36)
-		var rightControl fyne.CanvasObject
-		if selected != nil {
-			clearSelectionButton := widget.NewButtonWithIcon(lang.X("hand_range.show_all", "Show All Range"), theme.ViewRefreshIcon(), func() {
-				selected = nil
-				state.SelectedCombo = ""
-				rebuild()
-			})
-			clearSelectionButton.Importance = widget.HighImportance
-			rightControl = clearSelectionButton
-		}
-
-		positionRow := container.NewBorder(nil, nil,
-			widget.NewLabelWithStyle(lang.X("hand_range.position_label", "Position:"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			rightControl,
-			filterBar,
-		)
-		topWrap.Objects = []fyne.CanvasObject{newSectionCard(positionRow)}
-		topWrap.Refresh()
-
-		grid := buildRangeGrid(s, currentPosIdx, selectedCombo, func(cell *stats.HandRangeCell) {
-			selected = cell
-			state.SelectedCombo = comboDisplayName(cell)
-			rebuild()
-		})
-		gridSize := grid.MinSize()
-		gridFixed := container.NewWithoutLayout()
-		gridLock := canvas.NewRectangle(color.Transparent)
-		gridLock.SetMinSize(gridSize)
-		gridLock.Resize(gridSize)
-		gridFixed.Add(gridLock)
-		grid.Move(fyne.NewPos(0, 0))
-		grid.Resize(gridSize)
-		gridFixed.Add(grid)
-
-		leftWrap.Objects = []fyne.CanvasObject{container.NewScroll(gridFixed)}
-		leftWrap.Refresh()
-
-		rightMin := canvas.NewRectangle(color.Transparent)
-		rightMin.SetMinSize(fyne.NewSize(360, 0))
-		rightContent := container.NewPadded(buildRightPanel(s.HandRange, currentPosIdx, selected))
-		rightWrap.Objects = []fyne.CanvasObject{container.NewStack(rightMin, rightContent)}
-		rightWrap.Refresh()
+	v := &handRangeView{
+		s:             s,
+		state:         state,
+		currentPosIdx: currentPosIdx,
+		selected:      findCellByCombo(s.HandRange, state.SelectedCombo),
+		leftWrap:      container.NewMax(),
+		rightWrap:     container.NewMax(),
+		topWrap:       container.NewMax(),
 	}
-
-	split := container.NewHSplit(leftWrap, container.NewScroll(rightWrap))
-	split.Offset = 0.60
 
 	if state.PositionKey == "" {
 		state.PositionKey = positionFilters[currentPosIdx].Key
 	}
 
-	rebuild()
+	v.rebuild()
+
+	split := container.NewHSplit(v.leftWrap, container.NewScroll(v.rightWrap))
+	split.Offset = 0.60
 
 	return container.NewBorder(
-		container.NewVBox(topWrap, newSectionDivider()),
+		container.NewVBox(v.topWrap, newSectionDivider()),
 		nil,
 		nil,
 		nil,

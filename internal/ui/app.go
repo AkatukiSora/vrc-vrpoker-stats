@@ -14,19 +14,11 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/application"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/watcher"
 )
-
-type appService interface {
-	BootstrapImportAllLogs(ctx context.Context) (string, error)
-	ChangeLogFile(ctx context.Context, path string) error
-	ImportLines(ctx context.Context, sourcePath string, lines []string, startOffset int64, endOffset int64) error
-	Snapshot(ctx context.Context) (*stats.Stats, []*parser.Hand, int, error)
-	NextOffset(ctx context.Context, path string) (int64, error)
-	Close() error
-}
 
 type appTab int
 
@@ -52,7 +44,7 @@ type App struct {
 	fyneApp         fyne.App
 	win             fyne.Window
 	logPath         string
-	service         appService
+	service         application.AppService
 	watcher         *watcher.LogWatcher
 	watcherGen      uint64
 	changeReqCh     chan string
@@ -85,7 +77,7 @@ type App struct {
 }
 
 // Run starts the application
-func Run(service appService, metadata AppMetadata) {
+func Run(service application.AppService, metadata AppMetadata) {
 	if service == nil {
 		return
 	}

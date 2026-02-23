@@ -83,27 +83,6 @@ func newWeightedMinRowLayout(weights, minWidths []float32, padding float32) fyne
 	return &weightedMinRowLayout{weights: weights, minWidths: minWidths, padding: padding}
 }
 
-func brightenColor(c color.Color, amount float64) color.Color {
-	r, g, b, a := c.RGBA()
-	to8 := func(v uint32) float64 { return float64(v >> 8) }
-	clamp := func(v float64) uint8 {
-		if v < 0 {
-			return 0
-		}
-		if v > 255 {
-			return 255
-		}
-		return uint8(v)
-	}
-
-	return color.NRGBA{
-		R: clamp(to8(r) * (1 + amount)),
-		G: clamp(to8(g) * (1 + amount)),
-		B: clamp(to8(b) * (1 + amount)),
-		A: uint8(a >> 8),
-	}
-}
-
 func (l *weightedMinRowLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	n := len(objects)
 	if len(l.weights) < n {
@@ -186,69 +165,6 @@ func localSeatForHand(h *parser.Hand, fallback int) int {
 		}
 	}
 	return -1
-}
-
-// handSummaryLine1 formats the first summary line for a hand list item.
-func handSummaryLine1(h *parser.Hand, localSeat int) string {
-	timeStr := h.StartTime.Format("15:04")
-	seat := localSeatForHand(h, localSeat)
-
-	// Hole cards
-	var holeStr string
-	if lp, ok := h.Players[seat]; ok && len(lp.HoleCards) == 2 {
-		c1 := lp.HoleCards[0]
-		c2 := lp.HoleCards[1]
-		holeStr = rankDisplayName(c1.Rank) + suitSymbol(c1.Suit) + " " + rankDisplayName(c2.Rank) + suitSymbol(c2.Suit)
-	} else {
-		holeStr = "??"
-	}
-
-	// Board
-	var boardParts []string
-	for _, c := range h.CommunityCards {
-		boardParts = append(boardParts, rankDisplayName(c.Rank)+suitSymbol(c.Suit))
-	}
-	boardStr := strings.Join(boardParts, " ")
-	if boardStr == "" {
-		boardStr = "-"
-	}
-
-	return fmt.Sprintf("Hand #%d | %s | Cards: %s | Board: %s", h.ID, timeStr, holeStr, boardStr)
-}
-
-// handSummaryLine2 formats the second summary line for a hand list item.
-func handSummaryLine2(h *parser.Hand, localSeat int) string {
-	var result string
-	var posStr string
-	net := 0
-	seat := localSeatForHand(h, localSeat)
-	if lp, ok := h.Players[seat]; ok {
-		invested := 0
-		for _, act := range lp.Actions {
-			invested += act.Amount
-		}
-		net = lp.PotWon - invested
-
-		if lp.Won {
-			result = lang.X("hand_history.result_won_simple", "Won")
-		} else {
-			result = lang.X("hand_history.result_lost_simple", "Lost")
-		}
-		if lp.Position != parser.PosUnknown {
-			posStr = lp.Position.String()
-		} else if seat == h.SBSeat {
-			posStr = "SB"
-		} else if seat == h.BBSeat {
-			posStr = "BB"
-		} else {
-			posStr = lang.X("hand_history.seat", "Seat {{.N}}", map[string]any{"N": seat})
-		}
-	} else {
-		result = lang.X("hand_history.na", "N/A")
-		posStr = "?"
-	}
-	return fmt.Sprintf("Result: %-4s | Net: %6s | Pot: %4d | Pos: %-4s | Players: %2d",
-		result, signedChips(net), h.TotalPot, posStr, h.NumPlayers)
 }
 
 func handSummaryEntryFields(h *parser.Hand, localSeat int) ([]string, []string) {
@@ -628,9 +544,9 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 	var resultText *canvas.Text
 	if outcome.InHand {
 		if outcome.Won {
-			resultText = canvas.NewText(outcome.Result, color.NRGBA{R: 0x4c, G: 0xaf, B: 0x50, A: 0xff})
+			resultText = canvas.NewText(outcome.Result, uiSuccessAccent)
 		} else {
-			resultText = canvas.NewText(outcome.Result, color.NRGBA{R: 0xf4, G: 0x43, B: 0x36, A: 0xff})
+			resultText = canvas.NewText(outcome.Result, uiDangerAccent)
 		}
 	} else {
 		resultText = canvas.NewText(lang.X("hand_history.not_in_hand", "Not in this hand"), theme.ForegroundColor())

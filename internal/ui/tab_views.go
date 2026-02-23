@@ -16,6 +16,20 @@ type viewLayoutState struct {
 	accordionOpen [][]bool
 }
 
+// tabRoot is shared by all tab view structs; it holds the Fyne container and
+// provides a common CanvasObject() accessor.
+type tabRoot struct {
+	root *fyne.Container
+}
+
+func newTabRoot() tabRoot {
+	return tabRoot{root: container.NewMax()}
+}
+
+func (t *tabRoot) CanvasObject() fyne.CanvasObject {
+	return t.root
+}
+
 func captureViewLayoutState(obj fyne.CanvasObject) viewLayoutState {
 	state := viewLayoutState{}
 	collectViewLayoutState(obj, &state)
@@ -127,71 +141,55 @@ func replaceViewContentPreservingLayout(root *fyne.Container, next fyne.CanvasOb
 }
 
 type overviewTabView struct {
-	root       *fyne.Container
+	tabRoot
 	win        fyne.Window
 	visibility *MetricVisibilityState
 }
 
 func newOverviewTabView(win fyne.Window, visibility *MetricVisibilityState) *overviewTabView {
-	return &overviewTabView{root: container.NewMax(), win: win, visibility: visibility}
+	return &overviewTabView{tabRoot: newTabRoot(), win: win, visibility: visibility}
 }
 
 func (v *overviewTabView) Update(s *stats.Stats) {
 	replaceViewContentPreservingLayout(v.root, NewOverviewTab(s, v.visibility, v.win))
 }
 
-func (v *overviewTabView) CanvasObject() fyne.CanvasObject {
-	return v.root
-}
-
 type positionStatsTabView struct {
-	root       *fyne.Container
+	tabRoot
 	visibility *MetricVisibilityState
 }
 
 func newPositionStatsTabView(visibility *MetricVisibilityState) *positionStatsTabView {
-	return &positionStatsTabView{root: container.NewMax(), visibility: visibility}
+	return &positionStatsTabView{tabRoot: newTabRoot(), visibility: visibility}
 }
 
 func (v *positionStatsTabView) Update(s *stats.Stats) {
 	replaceViewContentPreservingLayout(v.root, NewPositionStatsTab(s, v.visibility))
 }
 
-func (v *positionStatsTabView) CanvasObject() fyne.CanvasObject {
-	return v.root
-}
-
 type handRangeTabView struct {
-	root  *fyne.Container
+	tabRoot
 	win   fyne.Window
 	state *HandRangeViewState
 }
 
 func newHandRangeTabView(win fyne.Window, state *HandRangeViewState) *handRangeTabView {
-	return &handRangeTabView{root: container.NewMax(), win: win, state: state}
+	return &handRangeTabView{tabRoot: newTabRoot(), win: win, state: state}
 }
 
 func (v *handRangeTabView) Update(s *stats.Stats) {
 	replaceViewContentPreservingLayout(v.root, NewHandRangeTab(s, v.win, v.state))
 }
 
-func (v *handRangeTabView) CanvasObject() fyne.CanvasObject {
-	return v.root
-}
-
 type handHistoryTabView struct {
-	root  *fyne.Container
+	tabRoot
 	state *HandHistoryViewState
 }
 
 func newHandHistoryTabView(state *HandHistoryViewState) *handHistoryTabView {
-	return &handHistoryTabView{root: container.NewMax(), state: state}
+	return &handHistoryTabView{tabRoot: newTabRoot(), state: state}
 }
 
 func (v *handHistoryTabView) Update(hands []*parser.Hand, localSeat int) {
 	replaceViewContentPreservingLayout(v.root, NewHandHistoryTab(hands, localSeat, v.state))
-}
-
-func (v *handHistoryTabView) CanvasObject() fyne.CanvasObject {
-	return v.root
 }

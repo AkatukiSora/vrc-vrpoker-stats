@@ -158,19 +158,6 @@ func tintOrFallback(primary, fallback color.Color) color.Color {
 	return fallback
 }
 
-func positionMetricChips(metricDefs []MetricDefinition) fyne.CanvasObject {
-	chips := make([]fyne.CanvasObject, 0, len(metricDefs)+1)
-	chips = append(chips, newMetricChip(lang.X("position_stats.metrics_count", "Metrics: {{.N}}", map[string]any{"N": len(metricDefs)}), uiInfoAccent))
-	for i, metric := range metricDefs {
-		if i >= 6 {
-			chips = append(chips, newMetricChip(lang.X("position_stats.more_metrics", "+{{.N}} more", map[string]any{"N": len(metricDefs) - i}), uiNeutralChipAccent))
-			break
-		}
-		chips = append(chips, newMetricChip(metric.Label, uiNeutralChipAccent))
-	}
-	return container.NewHScroll(container.NewHBox(chips...))
-}
-
 // NewPositionStatsTab returns the "Position Stats" tab canvas object.
 func NewPositionStatsTab(s *stats.Stats, visibility *MetricVisibilityState) fyne.CanvasObject {
 	if s == nil || len(s.ByPosition) == 0 {
@@ -182,16 +169,17 @@ func NewPositionStatsTab(s *stats.Stats, visibility *MetricVisibilityState) fyne
 		return newCenteredEmptyState(lang.X("position_stats.no_metrics", "No metrics selected. Enable metrics in Settings."))
 	}
 
+	headerBG := color.NRGBA{R: 0x7C, G: 0x8E, B: 0xA1, A: 0x24}
 	headers := []positionCellData{{
 		Main:   lang.X("position_stats.position_header", "Position"),
 		IsHead: true,
-		BG:     color.NRGBA{R: 0x7C, G: 0x8E, B: 0xA1, A: 0x24},
+		BG:     headerBG,
 	}}
 	for _, metric := range metricDefs {
 		headers = append(headers, positionCellData{
 			Main:   metric.Label,
 			IsHead: true,
-			BG:     color.NRGBA{R: 0x7C, G: 0x8E, B: 0xA1, A: 0x24},
+			BG:     headerBG,
 		})
 	}
 

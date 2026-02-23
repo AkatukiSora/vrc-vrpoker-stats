@@ -167,24 +167,17 @@ func NewOverviewTab(s *stats.Stats, visibility *MetricVisibilityState, win fyne.
 	}
 
 	if len(heroCards) > 0 {
-		sections = append(sections, container.NewGridWithColumns(minInt(4, len(heroCards)), heroCards...))
+		sections = append(sections, container.NewGridWithColumns(min(4, len(heroCards)), heroCards...))
 	}
 
 	if len(otherCards) > 0 {
 		sections = append(sections,
 			newSectionDivider(),
 			widget.NewLabelWithStyle(lang.X("overview.section.all_metrics", "All Visible Metrics"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			container.NewGridWithColumns(minInt(3, len(otherCards)), otherCards...),
+			container.NewGridWithColumns(min(3, len(otherCards)), otherCards...),
 		)
 	}
 
 	content := container.NewPadded(container.NewVBox(sections...))
 	return withFixedLowSampleLegend(container.NewScroll(content))
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

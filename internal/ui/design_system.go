@@ -112,3 +112,10 @@ func newCenteredEmptyState(message string) fyne.CanvasObject {
 
 	return container.NewCenter(container.NewStack(widthLock, card))
 }
+
+// withMinHeight wraps obj in a Stack with an invisible rectangle enforcing a minimum height.
+func withMinHeight(obj fyne.CanvasObject, minHeight float32) fyne.CanvasObject {
+	lock := canvas.NewRectangle(color.Transparent)
+	lock.SetMinSize(fyne.NewSize(0, minHeight))
+	return container.NewStack(lock, obj)
+}
