@@ -16,6 +16,17 @@ import (
 
 var reNewGame = regexp.MustCompile(`\[Table\]: Preparing for New Game`)
 
+// AppService is the interface that the UI layer depends on for log import and stats queries.
+// application.Service satisfies this interface.
+type AppService interface {
+	BootstrapImportAllLogs(ctx context.Context) (string, error)
+	ChangeLogFile(ctx context.Context, path string) error
+	ImportLines(ctx context.Context, sourcePath string, lines []string, startOffset int64, endOffset int64) error
+	Snapshot(ctx context.Context) (*stats.Stats, []*parser.Hand, int, error)
+	NextOffset(ctx context.Context, path string) (int64, error)
+	Close() error
+}
+
 type LogFileLocator func() ([]string, error)
 
 type Service struct {
