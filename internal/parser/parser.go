@@ -599,6 +599,11 @@ func parseCard(s string) (Card, error) {
 }
 
 func (p *Parser) GetLocalSeat() int { return p.result.LocalPlayerSeat }
+
+// HandCount returns the number of completed hands without allocating a slice.
+// Use this for cheap change-detection before calling GetHands.
+func (p *Parser) HandCount() int { return len(p.result.Hands) }
+
 func (p *Parser) GetHands() []*Hand {
 	h := make([]*Hand, len(p.result.Hands))
 	copy(h, p.result.Hands)

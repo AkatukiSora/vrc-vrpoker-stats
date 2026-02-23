@@ -191,7 +191,8 @@ func (c *Calculator) updateHandRange(table *HandRangeTable, h *parser.Hand, pi *
 	}
 
 	cell.Dealt++
-	if pfAction, ok := preflopRangeActionSummary(h, pi); ok {
+	pfAction, pfOK := preflopRangeActionSummary(h, pi)
+	if pfOK {
 		cell.Actions[pfAction]++
 		table.TotalActions[pfAction]++
 	}
@@ -233,7 +234,7 @@ func (c *Calculator) updateHandRange(table *HandRangeTable, h *parser.Hand, pi *
 		cell.ByPosition[pos] = ppc
 	}
 	ppc.Dealt++
-	if pfAction, ok := preflopRangeActionSummary(h, pi); ok {
+	if pfOK {
 		ppc.Actions[pfAction]++
 	}
 	if pi.Won {
