@@ -274,24 +274,72 @@ func (w *rangeCellWidget) CreateRenderer() fyne.WidgetRenderer {
 	outlineObjects = append(outlineObjects, r.label)
 	r.labelLayer = container.NewWithoutLayout(outlineObjects...)
 
-	r.bars = make([]*canvas.Rectangle, len(actionVisuals))
-	r.objects = make([]fyne.CanvasObject, 0, len(actionVisuals)+5)
+	r.barStops, r.barColors = buildRangeCellStops(w.counts, w.dealt)
+	r.barRaster = canvas.NewRasterWithPixels(func(x, _y, w, h int) color.Color {
+		if w <= 0 || h <= 0 || len(r.barStops) == 0 || len(r.barStops) != len(r.barColors) {
+			return color.Transparent
+		}
+
+		t := (float32(x) + 0.5) / float32(w)
+		for i, stop := range r.barStops {
+			if t <= stop {
+				return r.barColors[i]
+			}
+		}
+
+		return color.Transparent
+	})
+
+	r.objects = make([]fyne.CanvasObject, 0, 5)
 	r.objects = append(r.objects, r.bg)
-	for i, av := range actionVisuals {
-		bar := canvas.NewRectangle(av.Color)
-		bar.Hide()
-		r.bars[i] = bar
-		r.objects = append(r.objects, bar)
-	}
+	r.objects = append(r.objects, r.barRaster)
 	r.objects = append(r.objects, r.mask, r.border, r.labelLayer)
 	return r
+}
+
+func buildRangeCellStops(counts [stats.RangeActionBucketCount]int, dealt int) ([]float32, []color.NRGBA) {
+	if dealt <= 0 {
+		return nil, nil
+	}
+
+	stops := make([]float32, 0, len(actionVisuals))
+	colors := make([]color.NRGBA, 0, len(actionVisuals))
+	cumulative := 0
+
+	for _, av := range actionVisuals {
+		count := actionCountForVisual(counts, av)
+		if count <= 0 {
+			continue
+		}
+
+		cumulative += count
+		if cumulative > dealt {
+			cumulative = dealt
+		}
+
+		stop := float32(cumulative) / float32(dealt)
+		if len(stops) > 0 && stop <= stops[len(stops)-1] {
+			continue
+		}
+
+		stops = append(stops, stop)
+		colors = append(colors, av.Color)
+
+		if cumulative == dealt {
+			break
+		}
+	}
+
+	return stops, colors
 }
 
 type rangeCellRenderer struct {
 	owner *rangeCellWidget
 
 	bg           *canvas.Rectangle
-	bars         []*canvas.Rectangle
+	barRaster    *canvas.Raster
+	barStops     []float32
+	barColors    []color.NRGBA
 	mask         *canvas.Rectangle
 	border       *canvas.Rectangle
 	label        *canvas.Text
@@ -304,51 +352,8 @@ type rangeCellRenderer struct {
 func (r *rangeCellRenderer) Layout(size fyne.Size) {
 	r.bg.Move(fyne.NewPos(0, 0))
 	r.bg.Resize(size)
-
-	for _, bar := range r.bars {
-		bar.Hide()
-		bar.Move(fyne.NewPos(0, 0))
-		bar.Resize(fyne.NewSize(0, size.Height))
-	}
-
-	if r.owner.dealt > 0 && size.Width > 0 {
-		nonZero := make([]int, 0, len(actionVisuals))
-		for i, av := range actionVisuals {
-			if actionCountForVisual(r.owner.counts, av) > 0 {
-				nonZero = append(nonZero, i)
-			}
-		}
-
-		x := float32(0)
-		remain := size.Width
-		for idx, barIndex := range nonZero {
-			cnt := actionCountForVisual(r.owner.counts, actionVisuals[barIndex])
-			w := size.Width * float32(cnt) / float32(r.owner.dealt)
-			if idx == len(nonZero)-1 {
-				w = remain
-			}
-			if w < 0 {
-				w = 0
-			}
-			if w > remain {
-				w = remain
-			}
-			if w <= 0 {
-				continue
-			}
-
-			bar := r.bars[barIndex]
-			bar.Show()
-			bar.Move(fyne.NewPos(x, 0))
-			bar.Resize(fyne.NewSize(w, size.Height))
-
-			x += w
-			remain -= w
-			if remain <= 0 {
-				break
-			}
-		}
-	}
+	r.barRaster.Move(fyne.NewPos(0, 0))
+	r.barRaster.Resize(size)
 
 	r.mask.Move(fyne.NewPos(0, 0))
 	r.mask.Resize(size)
@@ -374,6 +379,9 @@ func (r *rangeCellRenderer) MinSize() fyne.Size {
 }
 
 func (r *rangeCellRenderer) Refresh() {
+	r.barStops, r.barColors = buildRangeCellStops(r.owner.counts, r.owner.dealt)
+	r.barRaster.Refresh()
+
 	r.label.Text = r.owner.label
 	r.label.Refresh()
 	for _, o := range r.labelOutline {
