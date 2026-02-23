@@ -38,6 +38,15 @@ var (
 	rePotManager = regexp.MustCompile(`\[PotManager\]: All players folded, player (\d+) won (\d+)`)
 )
 
+// validCardSuits and validCardRanks are package-level constants used by
+// parseCard to avoid allocating a new map on every card parse call.
+var validCardSuits = map[string]bool{"h": true, "d": true, "c": true, "s": true}
+var validCardRanks = map[string]bool{
+	"2": true, "3": true, "4": true, "5": true, "6": true,
+	"7": true, "8": true, "9": true, "10": true,
+	"J": true, "Q": true, "K": true, "A": true,
+}
+
 const timeLayout = "2006.01.02 15:04:05"
 
 // Parser holds state for incremental log parsing
@@ -586,13 +595,7 @@ func parseCard(s string) (Card, error) {
 	suit := string(s[len(s)-1])
 	rank := s[:len(s)-1]
 
-	validSuits := map[string]bool{"h": true, "d": true, "c": true, "s": true}
-	validRanks := map[string]bool{
-		"2": true, "3": true, "4": true, "5": true, "6": true,
-		"7": true, "8": true, "9": true, "10": true,
-		"J": true, "Q": true, "K": true, "A": true,
-	}
-	if !validSuits[suit] || !validRanks[rank] {
+	if !validCardSuits[suit] || !validCardRanks[rank] {
 		return Card{}, fmt.Errorf("invalid card token: %q", s)
 	}
 	return Card{Rank: rank, Suit: suit}, nil
