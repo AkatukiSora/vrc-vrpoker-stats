@@ -1,0 +1,206 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Background gradient: dark navy -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#1E2640"/>
+      <stop offset="100%" stop-color="#0E1320"/>
+    </linearGradient>
+
+    <!-- Goggles frame: bright top, darker bottom -->
+    <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#5499E0"/>
+      <stop offset="100%" stop-color="#2563A0"/>
+    </linearGradient>
+
+    <!-- Left lens interior: dark blue-tinted -->
+    <radialGradient id="lensL" cx="45%" cy="40%" r="60%">
+      <stop offset="0%"   stop-color="#152847"/>
+      <stop offset="100%" stop-color="#070D1A"/>
+    </radialGradient>
+
+    <!-- Right lens interior: dark with slight warm tint -->
+    <radialGradient id="lensR" cx="55%" cy="40%" r="60%">
+      <stop offset="0%"   stop-color="#1A0E1E"/>
+      <stop offset="100%" stop-color="#08060E"/>
+    </radialGradient>
+
+    <!-- Side strap gradient -->
+    <linearGradient id="strap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#234D80"/>
+      <stop offset="100%" stop-color="#153460"/>
+    </linearGradient>
+
+    <!-- Goggles blue ambient glow -->
+    <filter id="goggleGlow" x="-18%" y="-18%" width="136%" height="136%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="0 0 0 0 0.24  0 0 0 0 0.50  0 0 0 0 0.88  0 0 0 0.55 0"
+        result="colored"/>
+      <feMerge>
+        <feMergeNode in="colored"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Spade symbol glow: white-blue -->
+    <filter id="spadeGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="0.6 0 0 0 0.4  0.6 0 0 0 0.7  0 0 0 0 1  0 0 0 0.7 0"
+        result="colored"/>
+      <feMerge>
+        <feMergeNode in="colored"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Heart symbol glow: warm red -->
+    <filter id="heartGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="0 0 0 0 0.88  0 0 0 0 0.2  0 0 0 0 0.2  0 0 0 0.65 0"
+        result="colored"/>
+      <feMerge>
+        <feMergeNode in="colored"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Clip paths for lenses (to contain glare inside) -->
+    <clipPath id="clipLensL">
+      <rect x="72" y="188" width="164" height="136" rx="28"/>
+    </clipPath>
+    <clipPath id="clipLensR">
+      <rect x="276" y="188" width="164" height="136" rx="28"/>
+    </clipPath>
+  </defs>
+
+  <!-- ═══════════════════════════════════════
+       BACKGROUND
+       ═══════════════════════════════════════ -->
+  <rect width="512" height="512" rx="72" fill="url(#bg)"/>
+
+  <!-- Subtle background dot grid (VR/tech feel) -->
+  <!-- Sparse dot pattern using small circles -->
+  <g opacity="0.06" fill="#5499E0">
+    <circle cx="96"  cy="96"  r="2.5"/>
+    <circle cx="160" cy="80"  r="2"/>
+    <circle cx="56"  cy="152" r="2"/>
+    <circle cx="128" cy="440" r="2.5"/>
+    <circle cx="80"  cy="400" r="2"/>
+    <circle cx="416" cy="96"  r="2.5"/>
+    <circle cx="448" cy="160" r="2"/>
+    <circle cx="456" cy="400" r="2.5"/>
+    <circle cx="400" cy="448" r="2"/>
+    <circle cx="352" cy="72"  r="2"/>
+    <circle cx="200" cy="448" r="2"/>
+    <circle cx="56"  cy="360" r="2"/>
+    <circle cx="464" cy="320" r="2"/>
+  </g>
+
+  <!-- ═══════════════════════════════════════
+       AMBIENT GLOW BEHIND GOGGLES
+       ═══════════════════════════════════════ -->
+  <ellipse cx="256" cy="256" rx="210" ry="78"
+           fill="#3F81C6" opacity="0.10"/>
+
+  <!-- ═══════════════════════════════════════
+       SIDE STRAPS
+       ═══════════════════════════════════════ -->
+  <!-- Left strap -->
+  <rect x="16" y="218" width="44" height="76" rx="13"
+        fill="url(#strap)"/>
+  <rect x="16" y="218" width="44" height="4" rx="2"
+        fill="white" opacity="0.12"/>
+
+  <!-- Right strap -->
+  <rect x="452" y="218" width="44" height="76" rx="13"
+        fill="url(#strap)"/>
+  <rect x="452" y="218" width="44" height="4" rx="2"
+        fill="white" opacity="0.12"/>
+
+  <!-- ═══════════════════════════════════════
+       GOGGLES MAIN FRAME
+       ═══════════════════════════════════════ -->
+  <rect x="52" y="168" width="408" height="176" rx="52"
+        fill="url(#frame)" filter="url(#goggleGlow)"/>
+
+  <!-- Frame top highlight stripe -->
+  <rect x="80" y="168" width="352" height="5" rx="2.5"
+        fill="white" opacity="0.20"/>
+
+  <!-- Frame bottom shadow stripe -->
+  <rect x="80" y="339" width="352" height="5" rx="2.5"
+        fill="black" opacity="0.18"/>
+
+  <!-- ═══════════════════════════════════════
+       LEFT LENS
+       ═══════════════════════════════════════ -->
+  <rect x="72" y="188" width="164" height="136" rx="28"
+        fill="url(#lensL)"/>
+
+  <!-- Lens inner border (screen edge) -->
+  <rect x="72" y="188" width="164" height="136" rx="28"
+        fill="none" stroke="#4A88CC" stroke-width="2" stroke-opacity="0.35"/>
+
+  <!-- Lens top glare streak -->
+  <g clip-path="url(#clipLensL)">
+    <rect x="88" y="196" width="72" height="9" rx="4.5"
+          fill="white" opacity="0.13"/>
+    <rect x="100" y="209" width="30" height="4" rx="2"
+          fill="white" opacity="0.06"/>
+  </g>
+
+  <!-- ═══════════════════════════════════════
+       RIGHT LENS
+       ═══════════════════════════════════════ -->
+  <rect x="276" y="188" width="164" height="136" rx="28"
+        fill="url(#lensR)"/>
+
+  <!-- Lens inner border -->
+  <rect x="276" y="188" width="164" height="136" rx="28"
+        fill="none" stroke="#4A88CC" stroke-width="2" stroke-opacity="0.35"/>
+
+  <!-- Lens top glare streak -->
+  <g clip-path="url(#clipLensR)">
+    <rect x="292" y="196" width="72" height="9" rx="4.5"
+          fill="white" opacity="0.13"/>
+    <rect x="304" y="209" width="30" height="4" rx="2"
+          fill="white" opacity="0.06"/>
+  </g>
+
+  <!-- ═══════════════════════════════════════
+       NOSE BRIDGE AREA (center connector detail)
+       ═══════════════════════════════════════ -->
+  <!-- Small dark divider suggesting nose bridge -->
+  <rect x="240" y="290" width="32" height="24" rx="7"
+        fill="#0E1828" opacity="0.50"/>
+
+  <!-- ═══════════════════════════════════════
+       SPADE ♠ IN LEFT LENS
+       Left lens center: x=154, y=256
+       ═══════════════════════════════════════ -->
+  <text
+    x="154" y="256"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="88"
+    fill="white"
+    opacity="0.93"
+    filter="url(#spadeGlow)">♠</text>
+
+  <!-- ═══════════════════════════════════════
+       HEART ♥ IN RIGHT LENS
+       Right lens center: x=358, y=256
+       ═══════════════════════════════════════ -->
+  <text
+    x="358" y="256"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="88"
+    fill="#E85555"
+    opacity="0.95"
+    filter="url(#heartGlow)">♥</text>
+</svg>
