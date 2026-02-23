@@ -34,15 +34,28 @@ func preflopActionSequence(h *parser.Hand) []seqAction {
 	return out
 }
 
+// preflopHandContext holds per-hand preflop data computed once and reused
+// across all opportunity/action checks to avoid redundant iteration and sorting.
+type preflopHandContext struct {
+	seq            []seqAction
+	stealOpenSeat  int
+	stealOpenFound bool
+}
+
+func newPreflopHandContext(h *parser.Hand) preflopHandContext {
+	seq := preflopActionSequence(h)
+	seat, found := detectStealOpenSeatFromSeq(h, seq)
+	return preflopHandContext{seq: seq, stealOpenSeat: seat, stealOpenFound: found}
+}
+
 func isAggressivePreflop(a parser.ActionType) bool {
 	return a == parser.ActionBet || a == parser.ActionRaise || a == parser.ActionAllIn
 }
 
-func hasRFIOpportunityApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
-	if pi == nil || h == nil {
+func hasRFIOpportunityApprox(pi *parser.PlayerHandInfo, seq []seqAction) bool {
+	if pi == nil {
 		return false
 	}
-	seq := preflopActionSequence(h)
 	for _, sa := range seq {
 		if sa.seat == pi.SeatID {
 			return true
@@ -54,8 +67,8 @@ func hasRFIOpportunityApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
 	return false
 }
 
-func didRFIApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
-	if !hasRFIOpportunityApprox(pi, h) {
+func didRFIApprox(pi *parser.PlayerHandInfo, seq []seqAction) bool {
+	if !hasRFIOpportunityApprox(pi, seq) {
 		return false
 	}
 	for _, a := range pi.Actions {
@@ -123,11 +136,10 @@ func didFourBetApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
 	return ok && level >= 3
 }
 
-func hasSqueezeOpportunityApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
-	if pi == nil || h == nil {
+func hasSqueezeOpportunityApprox(pi *parser.PlayerHandInfo, seq []seqAction) bool {
+	if pi == nil {
 		return false
 	}
-	seq := preflopActionSequence(h)
 	openSeen := false
 	openCalls := 0
 	raiseCount := 0
@@ -150,8 +162,8 @@ func hasSqueezeOpportunityApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool
 	return false
 }
 
-func didSqueezeApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
-	if !hasSqueezeOpportunityApprox(pi, h) {
+func didSqueezeApprox(pi *parser.PlayerHandInfo, seq []seqAction) bool {
+	if !hasSqueezeOpportunityApprox(pi, seq) {
 		return false
 	}
 	for _, a := range pi.Actions {
@@ -166,14 +178,14 @@ func didSqueezeApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
 	return false
 }
 
-func isStealOpportunity(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
-	if pi == nil || h == nil {
+func isStealOpportunity(pi *parser.PlayerHandInfo, seq []seqAction) bool {
+	if pi == nil {
 		return false
 	}
 	if pi.Position != parser.PosCO && pi.Position != parser.PosBTN && pi.Position != parser.PosSB {
 		return false
 	}
-	return hasRFIOpportunityApprox(pi, h)
+	return hasRFIOpportunityApprox(pi, seq)
 }
 
 func isStealAttempt(pi *parser.PlayerHandInfo) bool {
@@ -194,31 +206,29 @@ func isStealAttempt(pi *parser.PlayerHandInfo) bool {
 	return false
 }
 
-func isFoldToStealOpportunity(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
+func isFoldToStealOpportunity(pi *parser.PlayerHandInfo, pfc preflopHandContext) bool {
 	if pi == nil {
 		return false
 	}
 	if pi.Position != parser.PosSB && pi.Position != parser.PosBB {
 		return false
 	}
-	return isFoldToStealOpportunityByPosition(pi, h, pi.Position)
+	return isFoldToStealOpportunityByPosition(pi, pfc, pi.Position)
 }
 
-func isFoldToStealOpportunityByPosition(pi *parser.PlayerHandInfo, h *parser.Hand, pos parser.Position) bool {
-	if pi == nil || h == nil {
+func isFoldToStealOpportunityByPosition(pi *parser.PlayerHandInfo, pfc preflopHandContext, pos parser.Position) bool {
+	if pi == nil {
 		return false
 	}
 	if pi.Position != pos {
 		return false
 	}
-	openSeat, ok := detectStealOpenSeat(h)
-	if !ok || openSeat == pi.SeatID {
+	if !pfc.stealOpenFound || pfc.stealOpenSeat == pi.SeatID {
 		return false
 	}
-	seq := preflopActionSequence(h)
 	seenOpen := false
-	for _, sa := range seq {
-		if sa.seat == openSeat && isAggressivePreflop(sa.act.Action) {
+	for _, sa := range pfc.seq {
+		if sa.seat == pfc.stealOpenSeat && isAggressivePreflop(sa.act.Action) {
 			seenOpen = true
 			continue
 		}
@@ -232,21 +242,19 @@ func isFoldToStealOpportunityByPosition(pi *parser.PlayerHandInfo, h *parser.Han
 	return false
 }
 
-func isThreeBetVsStealOpportunity(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
-	if pi == nil || h == nil {
+func isThreeBetVsStealOpportunity(pi *parser.PlayerHandInfo, pfc preflopHandContext) bool {
+	if pi == nil {
 		return false
 	}
 	if pi.Position != parser.PosSB && pi.Position != parser.PosBB {
 		return false
 	}
-	openSeat, ok := detectStealOpenSeat(h)
-	if !ok || openSeat == pi.SeatID {
+	if !pfc.stealOpenFound || pfc.stealOpenSeat == pi.SeatID {
 		return false
 	}
-	seq := preflopActionSequence(h)
 	seenOpen := false
-	for _, sa := range seq {
-		if sa.seat == openSeat && isAggressivePreflop(sa.act.Action) {
+	for _, sa := range pfc.seq {
+		if sa.seat == pfc.stealOpenSeat && isAggressivePreflop(sa.act.Action) {
 			seenOpen = true
 			continue
 		}
@@ -263,18 +271,13 @@ func isThreeBetVsStealOpportunity(pi *parser.PlayerHandInfo, h *parser.Hand) boo
 	return false
 }
 
-func didThreeBetVsSteal(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
-	if !isThreeBetVsStealOpportunity(pi, h) {
-		return false
-	}
-	seq := preflopActionSequence(h)
-	openSeat, ok := detectStealOpenSeat(h)
-	if !ok {
+func didThreeBetVsSteal(pi *parser.PlayerHandInfo, pfc preflopHandContext) bool {
+	if !isThreeBetVsStealOpportunity(pi, pfc) {
 		return false
 	}
 	seenOpen := false
-	for _, sa := range seq {
-		if sa.seat == openSeat && isAggressivePreflop(sa.act.Action) {
+	for _, sa := range pfc.seq {
+		if sa.seat == pfc.stealOpenSeat && isAggressivePreflop(sa.act.Action) {
 			seenOpen = true
 			continue
 		}
@@ -343,11 +346,11 @@ func isColdCallApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
 	return hasCallOnStreet(pi, parser.StreetPreFlop)
 }
 
-func detectStealOpenSeat(h *parser.Hand) (int, bool) {
+// detectStealOpenSeatFromSeq is the core implementation that reuses an already-computed seq.
+func detectStealOpenSeatFromSeq(h *parser.Hand, seq []seqAction) (int, bool) {
 	if h == nil {
 		return -1, false
 	}
-	seq := preflopActionSequence(h)
 	for _, sa := range seq {
 		if sa.act.Action == parser.ActionCall {
 			return -1, false
@@ -364,4 +367,9 @@ func detectStealOpenSeat(h *parser.Hand) (int, bool) {
 		}
 	}
 	return -1, false
+}
+
+// detectStealOpenSeat is kept for external callers that don't hold a preflopHandContext.
+func detectStealOpenSeat(h *parser.Hand) (int, bool) {
+	return detectStealOpenSeatFromSeq(h, preflopActionSequence(h))
 }

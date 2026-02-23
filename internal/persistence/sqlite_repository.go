@@ -20,6 +20,12 @@ func NewSQLiteRepository(dbPath string) (*SQLiteRepository, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+	// WAL mode reduces write latency by avoiding full fsync on every commit.
+	// synchronous=NORMAL is safe with WAL and significantly faster than the default FULL.
+	if _, err := db.Exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;`); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("set sqlite pragmas: %w", err)
+	}
 	repo := &SQLiteRepository{db: db}
 	if err := runMigrations(db); err != nil {
 		_ = db.Close()
@@ -433,10 +439,29 @@ func inClause(uids []string) (string, []any) {
 	return "(" + string(placeholders) + ")", args
 }
 
+// sqliteMaxVars is the default SQLite SQLITE_MAX_VARIABLE_NUMBER limit.
+// Keeping batches below this prevents "too many SQL variables" errors.
+const sqliteMaxVars = 999
+
 // loadAllHandChildren batch-loads board cards, players, hole cards, actions, and
 // anomalies for the given set of hand UIDs using 5 queries (one per child table).
-// Results are distributed back into the byUID map.
+// When the number of UIDs exceeds sqliteMaxVars the work is split into chunks.
 func (r *SQLiteRepository) loadAllHandChildren(ctx context.Context, uids []string, byUID map[string]*parser.Hand) error {
+	// Process in chunks to stay below SQLite's default variable limit of 999.
+	for len(uids) > 0 {
+		chunk := uids
+		if len(chunk) > sqliteMaxVars {
+			chunk = uids[:sqliteMaxVars]
+		}
+		uids = uids[len(chunk):]
+		if err := r.loadHandChildrenChunk(ctx, chunk, byUID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) loadHandChildrenChunk(ctx context.Context, uids []string, byUID map[string]*parser.Hand) error {
 	in, args := inClause(uids)
 
 	// Board cards

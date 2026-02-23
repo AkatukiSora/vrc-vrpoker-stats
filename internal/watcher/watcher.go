@@ -1,8 +1,8 @@
 package watcher
 
 import (
+	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -140,12 +140,7 @@ func (lw *LogWatcher) readNewContent() error {
 	startOffset := lw.offset
 	lw.mu.Unlock()
 
-	if _, err := f.Seek(startOffset, io.SeekStart); err != nil {
-		return err
-	}
-
-	buf, err := io.ReadAll(f)
-	if err != nil {
+	if _, err := f.Seek(startOffset, 0 /* io.SeekStart */); err != nil {
 		return err
 	}
 
@@ -154,17 +149,14 @@ func (lw *LogWatcher) readNewContent() error {
 	lw.offset = endOffset
 	lw.mu.Unlock()
 
-	if len(buf) == 0 {
-		return nil
+	// Stream lines without loading the entire new content into memory at once.
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
 	}
-
-	// Split into lines
-	content := string(buf)
-	lines := strings.Split(content, "\n")
-
-	// Remove empty trailing line
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
+	if err := scanner.Err(); err != nil {
+		return err
 	}
 
 	if len(lines) > 0 && lw.OnNewData != nil {
@@ -199,16 +191,7 @@ func DetectLatestLogFile() (string, error) {
 		return "", fmt.Errorf("no VRChat log files found in known locations")
 	}
 
-	// Sort by modification time, newest first
-	sort.Slice(candidates, func(i, j int) bool {
-		si, ei := os.Stat(candidates[i])
-		sj, ej := os.Stat(candidates[j])
-		if ei != nil || ej != nil {
-			return false
-		}
-		return si.ModTime().After(sj.ModTime())
-	})
-
+	sortByModTimeDesc(candidates)
 	return candidates[0], nil
 }
 
@@ -220,16 +203,23 @@ func DetectAllLogFiles() ([]string, error) {
 		return nil, fmt.Errorf("no VRChat log files found in known locations")
 	}
 
-	sort.Slice(candidates, func(i, j int) bool {
-		si, ei := os.Stat(candidates[i])
-		sj, ej := os.Stat(candidates[j])
-		if ei != nil || ej != nil {
-			return false
-		}
-		return si.ModTime().After(sj.ModTime())
-	})
-
+	sortByModTimeDesc(candidates)
 	return candidates, nil
+}
+
+// sortByModTimeDesc sorts paths newest-first using a single os.Stat per file,
+// avoiding the O(n²) stat calls that arise from calling os.Stat inside the
+// sort comparator.
+func sortByModTimeDesc(paths []string) {
+	modTimes := make(map[string]time.Time, len(paths))
+	for _, p := range paths {
+		if info, err := os.Stat(p); err == nil {
+			modTimes[p] = info.ModTime()
+		}
+	}
+	sort.Slice(paths, func(i, j int) bool {
+		return modTimes[paths[i]].After(modTimes[paths[j]])
+	})
 }
 
 // logDirectories returns OS-specific VRChat log directories

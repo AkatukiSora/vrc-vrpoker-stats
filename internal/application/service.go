@@ -124,8 +124,8 @@ func (s *Service) importFile(ctx context.Context, path string, activate bool) er
 		markHandStart(line, lineNo, lineStartByte, &handStartLn, &handStartByte)
 
 		_ = p.ParseLine(line)
-		hands := p.GetHands()
-		if len(hands) > parsedHands {
+		if p.HandCount() > parsedHands {
+			hands := p.GetHands()
 			newRows := collectNewPersistedHands(path, hands, &parsedHands, lineNo, &handStartLn, &handStartByte, lineStartByte, byteOffset)
 			cursor := buildImportCursor(path, byteOffset, lineNo)
 			if err := s.saveImportBatch(ctx, newRows, cursor); err != nil {
@@ -205,8 +205,8 @@ func (s *Service) ImportLines(ctx context.Context, sourcePath string, lines []st
 		markHandStart(line, lineNo, lineStartByte, &handStartLn, &handStartByte)
 
 		_ = workingParser.ParseLine(line)
-		hands := workingParser.GetHands()
-		if len(hands) > parsedHands {
+		if workingParser.HandCount() > parsedHands {
+			hands := workingParser.GetHands()
 			newRows = append(newRows, collectNewPersistedHands(sourcePath, hands, &parsedHands, lineNo, &handStartLn, &handStartByte, lineStartByte, lineEndByte)...)
 		}
 	}

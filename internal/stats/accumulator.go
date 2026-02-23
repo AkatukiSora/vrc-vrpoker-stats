@@ -32,6 +32,10 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 		return
 	}
 
+	// Compute the preflop action sequence once and reuse it for all checks
+	// that need it, avoiding redundant iteration and re-sorting.
+	pfc := newPreflopHandContext(h)
+
 	// Hand-frequency metrics
 	m.incOpp(MetricVPIP)
 	if pi.VPIP {
@@ -43,10 +47,10 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 		m.incCount(MetricPFR)
 	}
 
-	if hasRFIOpportunityApprox(pi, h) {
+	if hasRFIOpportunityApprox(pi, pfc.seq) {
 		m.incOpp(MetricRFI)
 	}
-	if didRFIApprox(pi, h) {
+	if didRFIApprox(pi, pfc.seq) {
 		m.incCount(MetricRFI)
 	}
 
@@ -76,10 +80,10 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 		m.incCount(MetricFourBet)
 	}
 
-	if hasSqueezeOpportunityApprox(pi, h) {
+	if hasSqueezeOpportunityApprox(pi, pfc.seq) {
 		m.incOpp(MetricSqueeze)
 	}
-	if didSqueezeApprox(pi, h) {
+	if didSqueezeApprox(pi, pfc.seq) {
 		m.incCount(MetricSqueeze)
 	}
 
@@ -90,35 +94,35 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 		m.incCount(MetricFoldToThreeBet)
 	}
 
-	if isStealOpportunity(pi, h) {
+	if isStealOpportunity(pi, pfc.seq) {
 		m.incOpp(MetricSteal)
 		if isStealAttempt(pi) {
 			m.incCount(MetricSteal)
 		}
 	}
 
-	if isFoldToStealOpportunity(pi, h) {
+	if isFoldToStealOpportunity(pi, pfc) {
 		m.incOpp(MetricFoldToSteal)
 		if pi.FoldedPF {
 			m.incCount(MetricFoldToSteal)
 		}
 	}
-	if isFoldToStealOpportunityByPosition(pi, h, parser.PosBB) {
+	if isFoldToStealOpportunityByPosition(pi, pfc, parser.PosBB) {
 		m.incOpp(MetricFoldBBToSteal)
 		if pi.FoldedPF {
 			m.incCount(MetricFoldBBToSteal)
 		}
 	}
-	if isFoldToStealOpportunityByPosition(pi, h, parser.PosSB) {
+	if isFoldToStealOpportunityByPosition(pi, pfc, parser.PosSB) {
 		m.incOpp(MetricFoldSBToSteal)
 		if pi.FoldedPF {
 			m.incCount(MetricFoldSBToSteal)
 		}
 	}
 
-	if isThreeBetVsStealOpportunity(pi, h) {
+	if isThreeBetVsStealOpportunity(pi, pfc) {
 		m.incOpp(MetricThreeBetVsSteal)
-		if didThreeBetVsSteal(pi, h) {
+		if didThreeBetVsSteal(pi, pfc) {
 			m.incCount(MetricThreeBetVsSteal)
 		}
 	}
