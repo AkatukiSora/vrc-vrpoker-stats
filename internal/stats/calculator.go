@@ -12,109 +12,14 @@ func NewCalculator() *Calculator {
 	return &Calculator{}
 }
 
-// Calculate computes full statistics from a list of hands for the local player
+// Calculate computes full statistics from a list of hands for the local player.
+// For one-off calculations use this method. For incremental updates, use IncrementalCalculator.
 func (c *Calculator) Calculate(hands []*parser.Hand, localSeat int) *Stats {
-	s := &Stats{
-		ByPosition: make(map[parser.Position]*PositionStats),
-		HandRange:  newHandRangeTable(),
-		Metrics:    make(map[MetricID]MetricValue),
-	}
-	ma := newMetricAccumulator()
-
+	ic := NewIncrementalCalculator(localSeat)
 	for _, h := range hands {
-		if !h.IsComplete {
-			continue
-		}
-		if !h.IsStatsEligible() {
-			continue
-		}
-
-		handSeat := localSeat
-		if h.LocalPlayerSeat >= 0 {
-			handSeat = h.LocalPlayerSeat
-		}
-		if handSeat < 0 {
-			continue
-		}
-
-		localInfo, ok := h.Players[handSeat]
-		if !ok {
-			// We might not be in this hand
-			continue
-		}
-
-		s.TotalHands++
-
-		pos := localInfo.Position
-		ps := c.ensurePositionStats(s, pos)
-		ps.Hands++
-
-		// Financial
-		invested := c.investedAmount(h, handSeat)
-		ps.Invested += invested
-		ps.PotWon += localInfo.PotWon
-		s.TotalPotWon += localInfo.PotWon
-		s.TotalInvested += invested
-
-		// Win
-		if localInfo.Won {
-			s.WonHands++
-			ps.Won++
-		}
-
-		// VPIP
-		if localInfo.VPIP {
-			s.VPIPHands++
-			ps.VPIP++
-		}
-
-		// PFR
-		if localInfo.PFR {
-			s.PFRHands++
-			ps.PFR++
-		}
-
-		// 3bet opportunity: faced preflop raise before committing as opener
-		if hasThreeBetOpportunityApprox(localInfo, h) {
-			s.ThreeBetOpportunities++
-			ps.ThreeBetOpp++
-		}
-		if localInfo.ThreeBet {
-			s.ThreeBetHands++
-			ps.ThreeBet++
-		}
-
-		// Fold to 3bet
-		if hasFoldToThreeBetOpportunityApprox(localInfo, h) {
-			s.FoldTo3BetOpportunities++
-			ps.FoldTo3BetOpp++
-		}
-		if localInfo.FoldTo3Bet {
-			s.FoldTo3BetHands++
-			ps.FoldTo3Bet++
-		}
-
-		// Showdown
-		if localInfo.ShowedDown {
-			s.ShowdownHands++
-			ps.Showdowns++
-			if localInfo.Won {
-				s.WonShowdowns++
-				ps.WonShowdowns++
-			}
-		}
-
-		// Hand range table update
-		if len(localInfo.HoleCards) == 2 {
-			c.updateHandRange(s.HandRange, h, localInfo, pos)
-		}
-
-		ma.consumeHand(h, localInfo, invested)
+		ic.Feed(h)
 	}
-
-	ma.finalize(s)
-
-	return s
+	return ic.Compute()
 }
 
 // ensurePositionStats gets or creates position stats
@@ -178,16 +83,13 @@ func (c *Calculator) updateHandRange(table *HandRangeTable, h *parser.Hand, pi *
 	}
 
 	cell := table.Cells[r][c2]
-	if cell == nil {
-		cell = &HandRangeCell{
-			Rank1:       RankOrder[row],
-			Rank2:       RankOrder[col],
-			Suited:      suited,
-			IsPair:      isPair,
-			ByPosition:  make(map[parser.Position]*HandRangePositionCell),
-			ByHandClass: make(map[string]*HandClassStats),
-		}
-		table.Cells[r][c2] = cell
+	// Cells are pre-allocated with metadata by newHandRangeTable; only the
+	// maps need lazy initialisation the first time a cell is written.
+	if cell.ByPosition == nil {
+		cell.ByPosition = make(map[parser.Position]*HandRangePositionCell)
+	}
+	if cell.ByHandClass == nil {
+		cell.ByHandClass = make(map[string]*HandClassStats)
 	}
 
 	cell.Dealt++
@@ -388,34 +290,24 @@ func bucketByPotFraction(amount int, h *parser.Hand) RangeActionBucket {
 	}
 }
 
-// newHandRangeTable initializes the 13x13 hand range table with empty cells
+// newHandRangeTable initializes the 13x13 hand range table.
+// Cell metadata (ranks, suited, pair) is pre-populated so the grid can always
+// display combo labels.  The ByPosition and ByHandClass maps are allocated
+// lazily in updateHandRange to avoid 338 make(map) calls upfront when only a
+// fraction of cells will ever be written.
 func newHandRangeTable() *HandRangeTable {
 	t := &HandRangeTable{}
 	for i := 0; i < 13; i++ {
 		for j := 0; j < 13; j++ {
-			r1, r2 := i, j
-			// Ensure r1 <= r2 (higher rank first in rank index)
-			suited := false
 			isPair := i == j
-			if !isPair {
-				if i < j {
-					suited = true // upper triangle = suited
-				} else {
-					suited = false // lower triangle = offsuit
-					// For display, ranks: row=higher rank idx, col=lower rank idx
-				}
-			}
+			suited := !isPair && i < j
 			rank1 := RankOrder[min13(i, j)]
 			rank2 := RankOrder[max13(i, j)]
-			_ = r1
-			_ = r2
 			t.Cells[i][j] = &HandRangeCell{
-				Rank1:       rank1,
-				Rank2:       rank2,
-				Suited:      suited && !isPair,
-				IsPair:      isPair,
-				ByPosition:  make(map[parser.Position]*HandRangePositionCell),
-				ByHandClass: make(map[string]*HandClassStats),
+				Rank1:  rank1,
+				Rank2:  rank2,
+				Suited: suited,
+				IsPair: isPair,
 			}
 		}
 	}

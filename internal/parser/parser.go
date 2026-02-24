@@ -603,6 +603,11 @@ func parseCard(s string) (Card, error) {
 
 func (p *Parser) GetLocalSeat() int { return p.result.LocalPlayerSeat }
 
+// IsNewHandLine reports whether line is the log line that begins a new poker
+// hand. Callers that need to track hand-start byte offsets can use this instead
+// of duplicating the regex.
+func IsNewHandLine(line string) bool { return reNewGame.MatchString(line) }
+
 // HandCount returns the number of completed hands without allocating a slice.
 // Use this for cheap change-detection before calling GetHands.
 func (p *Parser) HandCount() int { return len(p.result.Hands) }

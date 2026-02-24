@@ -47,6 +47,11 @@ func cloneParseResult(in ParseResult) ParseResult {
 	return out
 }
 
+// CloneHand returns a fully independent deep copy of h.
+// It is exported so that packages that already import parser (e.g. persistence)
+// can reuse this instead of maintaining their own copy of the same logic.
+func CloneHand(h *Hand) *Hand { return cloneHand(h) }
+
 func cloneHand(h *Hand) *Hand {
 	if h == nil {
 		return nil

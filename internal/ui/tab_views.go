@@ -3,9 +3,10 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/persistence"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
 )
 
@@ -142,38 +143,38 @@ func replaceViewContentPreservingLayout(root *fyne.Container, next fyne.CanvasOb
 
 type overviewTabView struct {
 	tabRoot
-	win          fyne.Window
-	visibility   *MetricVisibilityState
-	filter       TabFilterState
-	allHands     []*parser.Hand
-	localSeat    int
-	calc         *stats.Calculator
-	cachedTrendN int
-	cachedLen    int
+	win        fyne.Window
+	visibility *MetricVisibilityState
+	filter     TabFilterState
+	lastStats  *stats.Stats
+	localSeat  int
 }
 
 func newOverviewTabView(win fyne.Window, visibility *MetricVisibilityState) *overviewTabView {
 	return &overviewTabView{
-		tabRoot:      newTabRoot(),
-		win:          win,
-		visibility:   visibility,
-		filter:       TabFilterState{Mode: FilterModeTrend, NDays: 30, NMonths: 3, NHands: 500},
-		calc:         stats.NewCalculator(),
-		cachedTrendN: -1,
+		tabRoot:    newTabRoot(),
+		win:        win,
+		visibility: visibility,
+		filter:     TabFilterState{Mode: FilterModeTrend, NDays: 30, NMonths: 3, NHands: 500},
 	}
 }
 
-func (v *overviewTabView) Update(hands []*parser.Hand, localSeat int) {
-	v.allHands = hands
+func (v *overviewTabView) Update(s *stats.Stats, localSeat int) {
+	v.lastStats = s
 	v.localSeat = localSeat
 	v.rebuild()
 }
 
 func (v *overviewTabView) rebuild() {
-	filtered, trendN := filterHands(v.allHands, v.localSeat, &v.filter, &v.cachedTrendN, &v.cachedLen)
-	s := v.calc.Calculate(filtered, v.localSeat)
-	filterBar := buildFilterBar(&v.filter, trendN, func() {
-		v.cachedTrendN = -1
+	s := v.lastStats
+	if s == nil {
+		loadingLabel := widget.NewLabel(lang.X("app.status.loading_stats", "Loading stats…"))
+		loadingLabel.Alignment = fyne.TextAlignCenter
+		replaceViewContentPreservingLayout(v.root, container.NewCenter(loadingLabel))
+		return
+	}
+	// trendN=-1 since filtering is now done at the service layer
+	filterBar := buildFilterBar(&v.filter, -1, func() {
 		v.rebuild()
 	})
 	content := NewOverviewTab(s, v.visibility, v.win)
@@ -183,36 +184,36 @@ func (v *overviewTabView) rebuild() {
 
 type positionStatsTabView struct {
 	tabRoot
-	visibility   *MetricVisibilityState
-	filter       TabFilterState
-	allHands     []*parser.Hand
-	localSeat    int
-	calc         *stats.Calculator
-	cachedTrendN int
-	cachedLen    int
+	visibility *MetricVisibilityState
+	filter     TabFilterState
+	lastStats  *stats.Stats
+	localSeat  int
 }
 
 func newPositionStatsTabView(visibility *MetricVisibilityState) *positionStatsTabView {
 	return &positionStatsTabView{
-		tabRoot:      newTabRoot(),
-		visibility:   visibility,
-		filter:       TabFilterState{Mode: FilterModeTrend, NDays: 30, NMonths: 3, NHands: 500},
-		calc:         stats.NewCalculator(),
-		cachedTrendN: -1,
+		tabRoot:    newTabRoot(),
+		visibility: visibility,
+		filter:     TabFilterState{Mode: FilterModeTrend, NDays: 30, NMonths: 3, NHands: 500},
 	}
 }
 
-func (v *positionStatsTabView) Update(hands []*parser.Hand, localSeat int) {
-	v.allHands = hands
+func (v *positionStatsTabView) Update(s *stats.Stats, localSeat int) {
+	v.lastStats = s
 	v.localSeat = localSeat
 	v.rebuild()
 }
 
 func (v *positionStatsTabView) rebuild() {
-	filtered, trendN := filterHands(v.allHands, v.localSeat, &v.filter, &v.cachedTrendN, &v.cachedLen)
-	s := v.calc.Calculate(filtered, v.localSeat)
-	filterBar := buildFilterBar(&v.filter, trendN, func() {
-		v.cachedTrendN = -1
+	s := v.lastStats
+	if s == nil {
+		loadingLabel := widget.NewLabel(lang.X("app.status.loading_stats", "Loading stats…"))
+		loadingLabel.Alignment = fyne.TextAlignCenter
+		replaceViewContentPreservingLayout(v.root, container.NewCenter(loadingLabel))
+		return
+	}
+	// trendN=-1 since filtering is now done at the service layer
+	filterBar := buildFilterBar(&v.filter, -1, func() {
 		v.rebuild()
 	})
 	content := NewPositionStatsTab(s, v.visibility)
@@ -222,38 +223,38 @@ func (v *positionStatsTabView) rebuild() {
 
 type handRangeTabView struct {
 	tabRoot
-	win          fyne.Window
-	state        *HandRangeViewState
-	filter       TabFilterState
-	allHands     []*parser.Hand
-	localSeat    int
-	calc         *stats.Calculator
-	cachedTrendN int
-	cachedLen    int
+	win       fyne.Window
+	state     *HandRangeViewState
+	filter    TabFilterState
+	lastStats *stats.Stats
+	localSeat int
 }
 
 func newHandRangeTabView(win fyne.Window, state *HandRangeViewState) *handRangeTabView {
 	return &handRangeTabView{
-		tabRoot:      newTabRoot(),
-		win:          win,
-		state:        state,
-		filter:       TabFilterState{Mode: FilterModeTrend, NDays: 30, NMonths: 3, NHands: 500},
-		calc:         stats.NewCalculator(),
-		cachedTrendN: -1,
+		tabRoot: newTabRoot(),
+		win:     win,
+		state:   state,
+		filter:  TabFilterState{Mode: FilterModeTrend, NDays: 30, NMonths: 3, NHands: 500},
 	}
 }
 
-func (v *handRangeTabView) Update(hands []*parser.Hand, localSeat int) {
-	v.allHands = hands
+func (v *handRangeTabView) Update(s *stats.Stats, localSeat int) {
+	v.lastStats = s
 	v.localSeat = localSeat
 	v.rebuild()
 }
 
 func (v *handRangeTabView) rebuild() {
-	filtered, trendN := filterHands(v.allHands, v.localSeat, &v.filter, &v.cachedTrendN, &v.cachedLen)
-	s := v.calc.Calculate(filtered, v.localSeat)
-	filterBar := buildFilterBar(&v.filter, trendN, func() {
-		v.cachedTrendN = -1
+	s := v.lastStats
+	if s == nil {
+		loadingLabel := widget.NewLabel(lang.X("app.status.loading_stats", "Loading stats…"))
+		loadingLabel.Alignment = fyne.TextAlignCenter
+		replaceViewContentPreservingLayout(v.root, container.NewCenter(loadingLabel))
+		return
+	}
+	// trendN=-1 since filtering is now done at the service layer
+	filterBar := buildFilterBar(&v.filter, -1, func() {
 		v.rebuild()
 	})
 	content := NewHandRangeTab(s, v.win, v.state)
@@ -263,46 +264,84 @@ func (v *handRangeTabView) rebuild() {
 
 type handHistoryTabView struct {
 	tabRoot
-	state        *HandHistoryViewState
-	tabFilter    TabFilterState
-	handFilter   HandHistoryFilterState
-	allHands     []*parser.Hand
-	localSeat    int
-	cachedTrendN int
-	cachedLen    int
+	state      *HandHistoryViewState
+	handFilter HandHistoryFilterState
+
+	// Pagination state
+	page          int                       // 0-based current page
+	totalCount    int                       // total complete hands matching current filter
+	summaries     []persistence.HandSummary // current page only
+	filteredCount int                       // count of hands in current page (after DB filter)
+
+	// onLoadPage is called when the view needs a new page of data.
+	// The callback runs in a goroutine; result arrives via UpdatePage.
+	onLoadPage func(page int)
+
+	// onFetchHand is called when the user selects a hand in the list.
+	// The UID is passed; the controller fetches the full hand and calls UpdateDetail.
+	onFetchHand func(uid string)
+
+	// detailContent holds the right-side detail panel; kept as a typed ref so
+	// UpdateDetail can replace its content from outside NewHandHistoryTabFromSummaries.
+	detailContent *fyne.Container
 }
 
-func newHandHistoryTabView(state *HandHistoryViewState) *handHistoryTabView {
+func newHandHistoryTabView(state *HandHistoryViewState, onLoadPage func(page int), onFetchHand func(uid string)) *handHistoryTabView {
 	return &handHistoryTabView{
-		tabRoot:      newTabRoot(),
-		state:        state,
-		tabFilter:    TabFilterState{Mode: FilterModeAll, NDays: 30, NMonths: 3, NHands: 500},
-		cachedTrendN: -1,
+		tabRoot:     newTabRoot(),
+		state:       state,
+		onLoadPage:  onLoadPage,
+		onFetchHand: onFetchHand,
 	}
 }
 
-func (v *handHistoryTabView) Update(hands []*parser.Hand, localSeat int) {
-	v.allHands = hands
-	v.localSeat = localSeat
+// UpdatePage replaces the current page of summaries and total count, then rebuilds the view.
+// Must be called from the Fyne main thread.
+func (v *handHistoryTabView) UpdatePage(summaries []persistence.HandSummary, page, totalCount int) {
+	v.summaries = summaries
+	v.page = page
+	v.totalCount = totalCount
+	v.filteredCount = len(summaries)
 	v.rebuild()
 }
 
+// UpdateDetail replaces the detail panel content with the supplied canvas object.
+// Must be called from the Fyne main thread.
+func (v *handHistoryTabView) UpdateDetail(obj fyne.CanvasObject) {
+	if v.detailContent == nil {
+		return
+	}
+	v.detailContent.Objects = []fyne.CanvasObject{obj}
+	v.detailContent.Refresh()
+}
+
+const handHistoryPageSize = 200
+
 func (v *handHistoryTabView) rebuild() {
-	filtered, trendN := filterHands(v.allHands, v.localSeat, &v.tabFilter, &v.cachedTrendN, &v.cachedLen)
-	total := len(filtered)
-	filtered = applyHandHistoryFilter(filtered, v.localSeat, &v.handFilter)
-	panel := buildHandHistoryFilterPanel(
-		&v.tabFilter,
+	totalPages := (v.totalCount + handHistoryPageSize - 1) / handHistoryPageSize
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	panel := buildHandHistoryFilterPanelSummary(
 		&v.handFilter,
-		trendN,
-		total,
-		len(filtered),
+		v.page,
+		totalPages,
+		v.totalCount,
+		v.filteredCount,
 		func() {
-			v.cachedTrendN = -1
-			v.rebuild()
+			if v.onLoadPage != nil {
+				v.onLoadPage(0)
+			}
+		},
+		func(newPage int) {
+			if v.onLoadPage != nil {
+				v.onLoadPage(newPage)
+			}
 		},
 	)
-	content := NewHandHistoryTab(filtered, v.localSeat, v.state)
+	content, detailContent := NewHandHistoryTabFromSummaries(v.summaries, v.state, v.onFetchHand)
+	v.detailContent = detailContent
 	inner := container.NewBorder(panel, nil, nil, nil, content)
 	replaceViewContentPreservingLayout(v.root, inner)
 }

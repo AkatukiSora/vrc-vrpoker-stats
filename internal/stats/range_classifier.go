@@ -301,3 +301,15 @@ func AllMadeHandClasses() []string {
 		handClassStraightFlush,
 	}
 }
+
+// MadeHandClassID returns a stable 1-based ID for a made hand class.
+// Returns 0 when the class is unknown.
+func MadeHandClassID(cls string) int {
+	classes := AllMadeHandClasses()
+	for i, c := range classes {
+		if c == cls {
+			return i + 1
+		}
+	}
+	return 0
+}

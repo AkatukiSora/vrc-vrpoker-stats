@@ -76,7 +76,7 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 	if hasFourBetOpportunityApprox(pi, h) {
 		m.incOpp(MetricFourBet)
 	}
-	if didFourBetApprox(pi, h) {
+	if didFourBetApprox(pi, h, pfc.seq) {
 		m.incCount(MetricFourBet)
 	}
 
@@ -187,6 +187,27 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 	m.aggPostflop += agg
 	m.callPostflop += call
 	m.foldPostflop += fold
+}
+
+// clone returns a shallow copy of the accumulator suitable for finalize().
+// The counts and opps maps are copied so finalize() mutations do not affect the original.
+func (m *metricAccumulator) clone() *metricAccumulator {
+	c := &metricAccumulator{
+		counts:       make(map[MetricID]int, len(m.counts)),
+		opps:         make(map[MetricID]int, len(m.opps)),
+		aggPostflop:  m.aggPostflop,
+		callPostflop: m.callPostflop,
+		foldPostflop: m.foldPostflop,
+		bbNet:        m.bbNet,
+		bbHands:      m.bbHands,
+	}
+	for k, v := range m.counts {
+		c.counts[k] = v
+	}
+	for k, v := range m.opps {
+		c.opps[k] = v
+	}
+	return c
 }
 
 func (m *metricAccumulator) finalize(s *Stats) {

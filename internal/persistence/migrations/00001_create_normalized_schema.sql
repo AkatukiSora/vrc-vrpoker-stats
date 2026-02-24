@@ -43,14 +43,9 @@ CREATE TABLE IF NOT EXISTS import_cursors (
 );
 
 -- +goose Down
-DROP TABLE IF EXISTS hand_anomalies;
-DROP TABLE IF EXISTS hand_actions;
-DROP TABLE IF EXISTS hand_board_cards;
-DROP TABLE IF EXISTS hand_hole_cards;
-DROP TABLE IF EXISTS hand_players;
-DROP TABLE IF EXISTS hand_occurrences;
-DROP TABLE IF EXISTS hands;
-DROP TABLE IF EXISTS hands_legacy;
+-- Only drop tables created by this migration.
+-- Tables created by later migrations (hands, hand_*, hands_legacy) are dropped
+-- by their respective Down migrations.
 DROP TABLE IF EXISTS instance_participants;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS instances;

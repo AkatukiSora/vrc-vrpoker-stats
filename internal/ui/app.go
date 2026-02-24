@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -16,7 +18,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/application"
-	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/persistence"
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/watcher"
 )
 
@@ -54,7 +57,10 @@ type App struct {
 	closeOnce       sync.Once
 	isShuttingDown  bool
 	mu              sync.Mutex
-	lastHands       []*parser.Hand
+	updateMu        sync.Mutex
+	debounceTimer   *time.Timer
+	debounceMu      sync.Mutex
+	lastStats       *stats.Stats
 	lastLocalSeat   int
 	rangeState      *HandRangeViewState
 	historyState    *HandHistoryViewState
@@ -67,6 +73,10 @@ type App struct {
 	handHistoryView *handHistoryTabView
 	currentTab      appTab
 	navExpanded     bool
+	// historyPageRunning is 1 while loadHandHistoryPage is executing.
+	// pendingHistoryPage holds the next page to load (-1 = none).
+	historyPageRunning int32
+	pendingHistoryPage int32
 
 	mainContent *fyne.Container
 	railPanel   *fyne.Container
@@ -92,17 +102,18 @@ func Run(service application.AppService, metadata AppMetadata, dbPath string) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	appCtrl := &App{
-		ctx:          ctx,
-		cancel:       cancel,
-		fyneApp:      a,
-		win:          win,
-		dbPath:       dbPath,
-		service:      service,
-		rangeState:   &HandRangeViewState{},
-		historyState: &HandHistoryViewState{},
-		metricState:  NewMetricVisibilityState(),
-		currentTab:   tabOverview,
-		metadata:     metadata,
+		ctx:                ctx,
+		cancel:             cancel,
+		fyneApp:            a,
+		win:                win,
+		dbPath:             dbPath,
+		service:            service,
+		rangeState:         &HandRangeViewState{},
+		historyState:       &HandHistoryViewState{},
+		metricState:        NewMetricVisibilityState(),
+		currentTab:         tabOverview,
+		metadata:           metadata,
+		pendingHistoryPage: -1,
 	}
 	appCtrl.startLogChangeWorker()
 	win.SetCloseIntercept(func() {
@@ -269,9 +280,27 @@ func (a *App) rebuildNavigation() {
 
 func (a *App) initLogFile() {
 	slog.Info("bootstrapping log import")
+
+	// Show any data already in the DB before bootstrap begins.
+	// This makes the UI responsive even when re-importing takes a while.
+	a.doUpdateStats()
+
 	a.doSetStatus(lang.X("app.status.importing", "Importing VRChat logs..."))
 
-	logPath, err := a.service.BootstrapImportAllLogs(a.ctx)
+	onProgress := func(p application.BootstrapProgress) {
+		msg := lang.X("app.status.importing_progress",
+			"Importing logs… ({{.Current}}/{{.Total}}) {{.File}}",
+			map[string]any{
+				"Current": p.Current,
+				"Total":   p.Total,
+				"File":    shortPath(p.Path),
+			})
+		a.doSetStatus(msg)
+		// Update UI with data available so far so the user sees something.
+		a.doUpdateStats()
+	}
+
+	logPath, err := a.service.BootstrapImportAllLogsWithProgress(a.ctx, onProgress)
 	if err != nil {
 		slog.Error("no log file found during bootstrap", "error", err)
 		a.doSetStatus(lang.X("app.error.no_log_file", "No log file found: {{.Error}} — configure in Settings.", map[string]any{"Error": err}))
@@ -386,13 +415,26 @@ func (a *App) changeLogFile(path string) {
 		if !a.isCurrentWatcherGeneration(gen) {
 			return
 		}
-		a.doUpdateStats()
+		// Debounce: collapse rapid-fire OnNewData events into a single update
+		a.debounceMu.Lock()
+		if a.debounceTimer != nil {
+			a.debounceTimer.Stop()
+		}
+		a.debounceTimer = time.AfterFunc(time.Second, func() {
+			if a.isCurrentWatcherGeneration(gen) {
+				a.doUpdateStats()
+			}
+		})
+		a.debounceMu.Unlock()
 	}
 	w.OnNewLogFile = func(nextPath string) {
 		if !a.isCurrentWatcherGeneration(gen) {
 			return
 		}
 		slog.Info("new log file detected", "path", nextPath)
+		// Mark the current (now-old) log file as fully imported so future
+		// bootstrap runs skip it entirely.
+		a.service.MarkLogFullyImported(a.ctx, path)
 		a.requestLogFileChange(nextPath)
 	}
 	w.OnError = func(err error) {
@@ -470,17 +512,26 @@ func (a *App) doResetDB() {
 }
 
 func (a *App) doUpdateStats() {
-	_, hands, localSeat, err := a.service.Snapshot(a.ctx)
+	if !a.updateMu.TryLock() {
+		return
+	}
+	defer a.updateMu.Unlock()
+
+	s, localSeat, err := a.service.Stats(a.ctx, persistence.HandFilter{})
 	if err != nil {
-		slog.Error("snapshot failed", "error", err)
-		a.doSetStatus(lang.X("app.error.snapshot", "Snapshot error: {{.Error}}", map[string]any{"Error": err}))
+		slog.Error("stats failed", "error", err)
+		a.doSetStatus(lang.X("app.error.stats", "Stats error: {{.Error}}", map[string]any{"Error": err}))
 		return
 	}
 
-	slog.Info("snapshot complete", "hands", len(hands), "localSeat", localSeat)
+	handCount := 0
+	if s != nil {
+		handCount = s.TotalHands
+	}
+	slog.Info("stats updated", "hands", handCount, "localSeat", localSeat)
 
 	a.mu.Lock()
-	a.lastHands = hands
+	a.lastStats = s
 	a.lastLocalSeat = localSeat
 	a.mu.Unlock()
 
@@ -501,7 +552,7 @@ func (a *App) doRefreshCurrentTab() {
 
 	a.mu.Lock()
 	localSeat := a.lastLocalSeat
-	hands := a.lastHands
+	lastStats := a.lastStats
 	path := a.logPath
 	a.mu.Unlock()
 
@@ -511,26 +562,39 @@ func (a *App) doRefreshCurrentTab() {
 		if a.overviewView == nil {
 			a.overviewView = newOverviewTabView(a.win, a.metricState)
 		}
-		a.overviewView.Update(hands, localSeat)
+		a.overviewView.Update(lastStats, localSeat)
 		obj = a.overviewView.CanvasObject()
 	case tabPositionStats:
 		if a.positionView == nil {
 			a.positionView = newPositionStatsTabView(a.metricState)
 		}
-		a.positionView.Update(hands, localSeat)
+		a.positionView.Update(lastStats, localSeat)
 		obj = a.positionView.CanvasObject()
 	case tabHandRange:
 		if a.handRangeView == nil {
 			a.handRangeView = newHandRangeTabView(a.win, a.rangeState)
 		}
-		a.handRangeView.Update(hands, localSeat)
+		a.handRangeView.Update(lastStats, localSeat)
 		obj = a.handRangeView.CanvasObject()
 	case tabHandHistory:
-		if a.handHistoryView == nil {
-			a.handHistoryView = newHandHistoryTabView(a.historyState)
+		isNew := a.handHistoryView == nil
+		if isNew {
+			a.handHistoryView = newHandHistoryTabView(a.historyState, func(page int) {
+				go a.loadHandHistoryPage(page)
+			}, func(uid string) {
+				go a.loadHandDetail(uid)
+			})
 		}
-		a.handHistoryView.Update(hands, localSeat)
+		// Show current (possibly stale) state immediately.
 		obj = a.handHistoryView.CanvasObject()
+		// On first creation load page 0.  On subsequent refreshes (e.g. triggered
+		// by doUpdateStats during an import) reload the current page so the total
+		// count stays accurate and newly imported hands are visible.
+		if isNew {
+			go a.loadHandHistoryPage(0)
+		} else {
+			go a.loadHandHistoryPage(a.handHistoryView.page)
+		}
 	case tabSettings:
 		if a.settingsTab == nil || a.settingsPath != path {
 			dbPath := a.dbPath
@@ -558,7 +622,7 @@ func (a *App) doRefreshCurrentTab() {
 		if a.overviewView == nil {
 			a.overviewView = newOverviewTabView(a.win, a.metricState)
 		}
-		a.overviewView.Update(hands, localSeat)
+		a.overviewView.Update(lastStats, localSeat)
 		obj = a.overviewView.CanvasObject()
 	}
 
@@ -566,12 +630,125 @@ func (a *App) doRefreshCurrentTab() {
 	a.mainContent.Refresh()
 }
 
-// doSetStatus safely updates the status bar label from any goroutine.
+func (a *App) buildHandHistoryFilter() persistence.HandFilter {
+	var filter persistence.HandFilter
+	if a.handHistoryView == nil {
+		return filter
+	}
+
+	selectedPocket := a.handHistoryView.handFilter.PocketCategories
+	if len(selectedPocket) > 0 {
+		ids := make([]int, 0, len(selectedPocket))
+		for _, cat := range selectedPocket {
+			ids = append(ids, int(cat)+1)
+		}
+		filter.PocketCategoryIDs = ids
+	}
+
+	selectedFinal := a.handHistoryView.handFilter.FinalClasses
+	if len(selectedFinal) > 0 {
+		ids := make([]int, 0, len(selectedFinal))
+		for _, cls := range selectedFinal {
+			id := stats.MadeHandClassID(cls)
+			if id > 0 {
+				ids = append(ids, id)
+			}
+		}
+		filter.FinalClassIDs = ids
+	}
+
+	return filter
+}
+
+// loadHandHistoryPage fetches one page of hand summaries in a background goroutine
+// and then updates the handHistoryView on the Fyne main thread.
+//
+// If a load is already in progress, the requested page is stored as a pending
+// request and executed immediately after the current load completes. This ensures
+// that user navigation is never silently dropped during an import.
+func (a *App) loadHandHistoryPage(page int) {
+	// Store the page the caller wants.  If another goroutine is running, it will
+	// pick this up when it finishes (see the retry loop below).
+	atomic.StoreInt32(&a.pendingHistoryPage, int32(page))
+
+	// Only one goroutine should do the actual DB work at a time.
+	if !atomic.CompareAndSwapInt32(&a.historyPageRunning, 0, 1) {
+		return
+	}
+	defer atomic.StoreInt32(&a.historyPageRunning, 0)
+
+	// Drain pending requests: after each load, check whether a new page was
+	// requested while we were working, and service it before giving up the slot.
+	for {
+		// Take ownership of whatever page is currently pending.
+		wantPage := int(atomic.SwapInt32(&a.pendingHistoryPage, -1))
+		if wantPage < 0 {
+			// No pending request; we are done.
+			return
+		}
+
+		offset := wantPage * handHistoryPageSize
+		f := a.buildHandHistoryFilter()
+		f.Limit = handHistoryPageSize
+		f.Offset = offset
+		summaries, totalCount, err := a.service.ListHandSummaries(a.ctx, f)
+		if err != nil {
+			slog.Error("list hand summaries failed", "error", err)
+			a.doSetStatus(lang.X("app.error.snapshot", "Snapshot error: {{.Error}}", map[string]any{"Error": err}))
+			// Do not update UI; loop to try any further pending request.
+			continue
+		}
+
+		capturedPage := wantPage
+		capturedTotal := totalCount
+		capturedSummaries := summaries
+		fyne.Do(func() {
+			if a.handHistoryView == nil {
+				return
+			}
+			a.handHistoryView.UpdatePage(capturedSummaries, capturedPage, capturedTotal)
+			if a.mainContent != nil {
+				a.mainContent.Refresh()
+			}
+		})
+	}
+}
+
 func (a *App) doSetStatus(msg string) {
 	fyne.Do(func() {
 		if a.statusText != nil {
 			a.statusText.SetText(msg)
 		}
+	})
+}
+
+// loadHandDetail fetches the full hand data for a single UID in a background goroutine
+// and then updates the handHistoryView detail panel on the Fyne main thread.
+func (a *App) loadHandDetail(uid string) {
+	a.mu.Lock()
+	localSeat := a.lastLocalSeat
+	a.mu.Unlock()
+
+	h, err := a.service.GetHandByUID(a.ctx, uid)
+	if err != nil {
+		slog.Error("get hand by uid failed", "uid", uid, "error", err)
+		fyne.Do(func() {
+			if a.handHistoryView == nil {
+				return
+			}
+			a.handHistoryView.UpdateDetail(
+				newCenteredEmptyState(lang.X("hand_history.detail.error", "Failed to load hand details.")),
+			)
+		})
+		return
+	}
+
+	detail := buildDetailPanel(h, localSeat)
+	fyne.Do(func() {
+		if a.handHistoryView == nil {
+			return
+		}
+		a.handHistoryView.UpdateDetail(detail)
 	})
 }
 

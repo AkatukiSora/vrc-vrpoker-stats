@@ -128,12 +128,28 @@ func hasFourBetOpportunityApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool
 	return hasFoldToThreeBetOpportunityApprox(pi, h)
 }
 
-func didFourBetApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
+func didFourBetApprox(pi *parser.PlayerHandInfo, h *parser.Hand, seq []seqAction) bool {
 	if !hasFourBetOpportunityApprox(pi, h) {
 		return false
 	}
-	level, ok := firstPreflopAggressionLevel(h, pi.SeatID)
+	level, ok := firstPreflopAggressionLevelFromSeq(seq, pi.SeatID)
 	return ok && level >= 3
+}
+
+// firstPreflopAggressionLevelFromSeq returns the aggression level (1=open, 2=3bet, 3=4bet, …)
+// at which the given seat first acts aggressively preflop, using an already-computed seq.
+func firstPreflopAggressionLevelFromSeq(seq []seqAction, seat int) (int, bool) {
+	level := 0
+	for _, sa := range seq {
+		if !isAggressivePreflop(sa.act.Action) {
+			continue
+		}
+		if sa.seat == seat {
+			return level + 1, true
+		}
+		level++
+	}
+	return 0, false
 }
 
 func hasSqueezeOpportunityApprox(pi *parser.PlayerHandInfo, seq []seqAction) bool {
@@ -298,17 +314,7 @@ func firstPreflopAggressionLevel(h *parser.Hand, seat int) (int, bool) {
 	if h == nil {
 		return 0, false
 	}
-	level := 0
-	for _, sa := range preflopActionSequence(h) {
-		if !isAggressivePreflop(sa.act.Action) {
-			continue
-		}
-		if sa.seat == seat {
-			return level + 1, true
-		}
-		level++
-	}
-	return 0, false
+	return firstPreflopAggressionLevelFromSeq(preflopActionSequence(h), seat)
 }
 
 func isColdCallApprox(pi *parser.PlayerHandInfo, h *parser.Hand) bool {

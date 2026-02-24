@@ -15,6 +15,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/persistence"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
 )
 
@@ -286,11 +287,11 @@ type HandHistoryViewState struct {
 	SelectedHandKey string
 }
 
-// HandHistoryFilterState holds preflop pocket-hand and river hand-class filters.
+// HandHistoryFilterState holds preflop pocket-hand and final hand-class filters.
 // Empty slices mean "no filter" (show all).
 type HandHistoryFilterState struct {
 	PocketCategories []stats.PocketCategory
-	RiverHandClasses []string
+	FinalClasses     []string
 }
 
 type handOutcomeSummary struct {
@@ -299,7 +300,6 @@ type handOutcomeSummary struct {
 	PotValue      string
 	PositionValue string
 	PlayersValue  string
-	InHand        bool
 	Won           bool
 }
 
@@ -322,7 +322,6 @@ func buildHandOutcomeSummary(h *parser.Hand, seat int) handOutcomeSummary {
 		return out
 	}
 
-	out.InHand = true
 	invested := 0
 	for _, act := range lp.Actions {
 		invested += act.Amount
@@ -550,14 +549,10 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 
 	outcome := buildHandOutcomeSummary(h, seat)
 	var resultText *canvas.Text
-	if outcome.InHand {
-		if outcome.Won {
-			resultText = canvas.NewText(outcome.Result, uiSuccessAccent)
-		} else {
-			resultText = canvas.NewText(outcome.Result, uiDangerAccent)
-		}
+	if outcome.Won {
+		resultText = canvas.NewText(outcome.Result, uiSuccessAccent)
 	} else {
-		resultText = canvas.NewText(lang.X("hand_history.not_in_hand", "Not in this hand"), theme.ForegroundColor())
+		resultText = canvas.NewText(outcome.Result, uiDangerAccent)
 	}
 	resultText.TextStyle = fyne.TextStyle{Bold: true}
 	resultText.TextSize = normalSize * 1.2
@@ -639,11 +634,11 @@ func buildDetailPanel(h *parser.Hand, localSeat int) fyne.CanvasObject {
 	return container.NewScroll(container.NewPadded(content))
 }
 
-// applyHandHistoryFilter filters hands by pocket category and/or river hand class.
+// applyHandHistoryFilter filters hands by pocket category and/or final hand class.
 // Both filters are OR-within-category (any selected pocket cat matches, any selected river class matches).
 // If both filters are non-empty, a hand must match BOTH.
 func applyHandHistoryFilter(hands []*parser.Hand, localSeat int, f *HandHistoryFilterState) []*parser.Hand {
-	if f == nil || (len(f.PocketCategories) == 0 && len(f.RiverHandClasses) == 0) {
+	if f == nil || (len(f.PocketCategories) == 0 && len(f.FinalClasses) == 0) {
 		return hands
 	}
 	out := hands[:0:0]
@@ -680,15 +675,15 @@ func applyHandHistoryFilter(hands []*parser.Hand, localSeat int, f *HandHistoryF
 			}
 		}
 
-		// River hand class filter
-		if len(f.RiverHandClasses) > 0 {
+		// Final hand class filter
+		if len(f.FinalClasses) > 0 {
 			if len(h.CommunityCards) < 5 || len(pi.HoleCards) != 2 {
 				continue
 			}
-			riverClass := stats.ClassifyMadeHand(pi.HoleCards, h.CommunityCards)
+			finalClass := stats.ClassifyMadeHand(pi.HoleCards, h.CommunityCards)
 			matched := false
-			for _, wantClass := range f.RiverHandClasses {
-				if riverClass == wantClass {
+			for _, wantClass := range f.FinalClasses {
+				if finalClass == wantClass {
 					matched = true
 					break
 				}
@@ -756,39 +751,39 @@ func buildHandHistoryFilterPanel(
 	}
 	pocketGrid := container.NewGridWithColumns(3, pocketChecks...)
 
-	// -- River Hand Class checkboxes --
-	riverClasses := stats.AllMadeHandClasses()
-	selectedRiver := make(map[string]bool, len(handFilter.RiverHandClasses))
-	for _, c := range handFilter.RiverHandClasses {
-		selectedRiver[c] = true
+	// -- Final Hand Class checkboxes --
+	finalClasses := stats.AllMadeHandClasses()
+	selectedFinal := make(map[string]bool, len(handFilter.FinalClasses))
+	for _, c := range handFilter.FinalClasses {
+		selectedFinal[c] = true
 	}
 
-	riverChecks := make([]fyne.CanvasObject, 0, len(riverClasses))
-	for _, cls := range riverClasses {
+	finalChecks := make([]fyne.CanvasObject, 0, len(finalClasses))
+	for _, cls := range finalClasses {
 		cls := cls
-		label := lang.X("river."+riverI18nKey(cls), cls) //i18n:ignore river hand class labels are already translated via key
+		label := lang.X("final."+finalI18nKey(cls), cls) //i18n:ignore final hand class labels are already translated via key
 		check := widget.NewCheck(label, func(checked bool) {
 			if checked {
-				selectedRiver[cls] = true
+				selectedFinal[cls] = true
 			} else {
-				delete(selectedRiver, cls)
+				delete(selectedFinal, cls)
 			}
-			handFilter.RiverHandClasses = handFilter.RiverHandClasses[:0]
-			for _, c := range riverClasses {
-				if selectedRiver[c] {
-					handFilter.RiverHandClasses = append(handFilter.RiverHandClasses, c)
+			handFilter.FinalClasses = handFilter.FinalClasses[:0]
+			for _, c := range finalClasses {
+				if selectedFinal[c] {
+					handFilter.FinalClasses = append(handFilter.FinalClasses, c)
 				}
 			}
 			onChange()
 		})
-		check.Checked = selectedRiver[cls]
-		riverChecks = append(riverChecks, check)
+		check.Checked = selectedFinal[cls]
+		finalChecks = append(finalChecks, check)
 	}
-	riverGrid := container.NewGridWithColumns(3, riverChecks...)
+	finalGrid := container.NewGridWithColumns(3, finalChecks...)
 
 	acc := widget.NewAccordion(
 		widget.NewAccordionItem(lang.X("hand_history.filter.pocket.title", "Pocket Hand"), pocketGrid),
-		widget.NewAccordionItem(lang.X("hand_history.filter.river.title", "River Hand"), riverGrid),
+		widget.NewAccordionItem(lang.X("hand_history.filter.final.title", "Final Hand"), finalGrid),
 	)
 
 	return container.NewVBox(topRow, acc)
@@ -822,8 +817,8 @@ func pocketI18nKey(c stats.PocketCategory) string {
 	}
 }
 
-// riverI18nKey converts a hand class string to its i18n key suffix.
-func riverI18nKey(cls string) string {
+// finalI18nKey converts a hand class string to its i18n key suffix.
+func finalI18nKey(cls string) string {
 	switch cls {
 	case "High Card":
 		return "high_card"
@@ -917,4 +912,240 @@ func NewHandHistoryTab(hands []*parser.Hand, localSeat int, state *HandHistoryVi
 	subtitle.Wrapping = fyne.TextWrapWord
 
 	return container.NewBorder(container.NewVBox(title, subtitle, newSectionDivider()), nil, nil, nil, split)
+}
+
+// parseCardString parses a 2-char card string like "Ah" into parser.Card.
+// Returns zero Card on failure.
+func parseCardString(s string) parser.Card {
+	if len(s) < 2 {
+		return parser.Card{}
+	}
+	return parser.Card{Rank: string(s[:len(s)-1]), Suit: string(s[len(s)-1:])}
+}
+
+// buildHandHistoryFilterPanelSummary builds the combined hand filter panel for the summary path.
+// page and totalPages are 0-based and 1-based respectively; onPageChange is called with the new 0-based page index.
+func buildHandHistoryFilterPanelSummary(
+	handFilter *HandHistoryFilterState,
+	page int,
+	totalPages int,
+	total int,
+	filtered int,
+	onChange func(),
+	onPageChange func(newPage int),
+) fyne.CanvasObject {
+	// Showing count label
+	showingLabel := widget.NewLabel(lang.X("hand_history.filter.showing",
+		"Showing {{.N}} / {{.Total}} hands",
+		map[string]any{"N": filtered, "Total": total}))
+
+	// Pagination controls
+	prevBtn := widget.NewButton(lang.X("hand_history.page.prev", "← Prev"), func() {
+		if page > 0 {
+			onPageChange(page - 1)
+		}
+	})
+	prevBtn.Disable()
+	if page > 0 {
+		prevBtn.Enable()
+	}
+
+	nextBtn := widget.NewButton(lang.X("hand_history.page.next", "Next →"), func() {
+		if page < totalPages-1 {
+			onPageChange(page + 1)
+		}
+	})
+	nextBtn.Disable()
+	if page < totalPages-1 {
+		nextBtn.Enable()
+	}
+
+	pageLabel := widget.NewLabel(lang.X("hand_history.page.label",
+		"Page {{.Page}} / {{.Total}}",
+		map[string]any{"Page": page + 1, "Total": totalPages}))
+	pageLabel.Alignment = fyne.TextAlignCenter
+
+	pageNav := container.NewHBox(prevBtn, pageLabel, nextBtn)
+	topRow := container.NewHBox(showingLabel, pageNav)
+
+	if handFilter == nil {
+		return topRow
+	}
+
+	// -- Pocket Hand checkboxes --
+	pocketCats := stats.AllPocketCategories()
+	selectedPocket := make(map[stats.PocketCategory]bool, len(handFilter.PocketCategories))
+	for _, c := range handFilter.PocketCategories {
+		selectedPocket[c] = true
+	}
+
+	pocketChecks := make([]fyne.CanvasObject, 0, len(pocketCats))
+	for _, cat := range pocketCats {
+		cat := cat
+		label := lang.X("pocket."+pocketI18nKey(cat), stats.PocketCategoryLabel(cat)) //i18n:ignore poker category labels are already translated via key
+		check := widget.NewCheck(label, func(checked bool) {
+			if checked {
+				selectedPocket[cat] = true
+			} else {
+				delete(selectedPocket, cat)
+			}
+			handFilter.PocketCategories = handFilter.PocketCategories[:0]
+			for _, c := range pocketCats {
+				if selectedPocket[c] {
+					handFilter.PocketCategories = append(handFilter.PocketCategories, c)
+				}
+			}
+			onChange()
+		})
+		check.Checked = selectedPocket[cat]
+		pocketChecks = append(pocketChecks, check)
+	}
+	pocketGrid := container.NewGridWithColumns(3, pocketChecks...)
+
+	// -- Final Hand Class checkboxes --
+	finalClasses := stats.AllMadeHandClasses()
+	selectedFinal := make(map[string]bool, len(handFilter.FinalClasses))
+	for _, c := range handFilter.FinalClasses {
+		selectedFinal[c] = true
+	}
+
+	finalChecks := make([]fyne.CanvasObject, 0, len(finalClasses))
+	for _, cls := range finalClasses {
+		cls := cls
+		label := lang.X("final."+finalI18nKey(cls), cls) //i18n:ignore final hand class labels are already translated via key
+		check := widget.NewCheck(label, func(checked bool) {
+			if checked {
+				selectedFinal[cls] = true
+			} else {
+				delete(selectedFinal, cls)
+			}
+			handFilter.FinalClasses = handFilter.FinalClasses[:0]
+			for _, c := range finalClasses {
+				if selectedFinal[c] {
+					handFilter.FinalClasses = append(handFilter.FinalClasses, c)
+				}
+			}
+			onChange()
+		})
+		check.Checked = selectedFinal[cls]
+		finalChecks = append(finalChecks, check)
+	}
+	finalGrid := container.NewGridWithColumns(3, finalChecks...)
+
+	acc := widget.NewAccordion(
+		widget.NewAccordionItem(lang.X("hand_history.filter.pocket.title", "Pocket Hand"), pocketGrid),
+		widget.NewAccordionItem(lang.X("hand_history.filter.final.title", "Final Hand"), finalGrid),
+	)
+
+	return container.NewVBox(topRow, acc)
+}
+
+// buildDetailPanelEmpty returns an empty state panel for the detail pane.
+func buildDetailPanelEmpty(msg string) fyne.CanvasObject {
+	return newCenteredEmptyState(msg)
+}
+
+// handSummaryEntryFieldsFromSummary builds the two-line list entry fields from a HandSummary.
+func handSummaryEntryFieldsFromSummary(s persistence.HandSummary) ([]string, []string) {
+	timeStr := s.StartTime.Format("15:04")
+
+	holeStr := "??"
+	if s.HoleCard0 != "" && s.HoleCard1 != "" {
+		c0 := parseCardString(s.HoleCard0)
+		c1 := parseCardString(s.HoleCard1)
+		holeStr = rankDisplayName(c0.Rank) + suitSymbol(c0.Suit) + " " + rankDisplayName(c1.Rank) + suitSymbol(c1.Suit)
+	}
+
+	posStr := s.Position
+	if posStr == "" {
+		posStr = "?"
+	}
+	resultStr := lang.X("hand_history.result_won_simple", "Won")
+	if !s.Won {
+		resultStr = lang.X("hand_history.result_lost_simple", "Lost")
+	}
+
+	line1 := []string{
+		lang.X("hand_history.summary.time", "Time: {{.Time}}", map[string]any{"Time": timeStr}),
+		lang.X("hand_history.summary.cards", "Cards: {{.Cards}}", map[string]any{"Cards": holeStr}),
+	}
+	line2 := []string{
+		lang.X("hand_history.summary.result", "Result: {{.Value}}", map[string]any{"Value": resultStr}),
+		lang.X("hand_history.summary.net", "Net: {{.Value}}", map[string]any{"Value": signedChips(s.NetChips)}),
+		lang.X("hand_history.summary.pot", "Pot: {{.Value}}", map[string]any{"Value": fmt.Sprintf("%d", s.TotalPot)}),
+		lang.X("hand_history.summary.pos", "Pos: {{.Value}}", map[string]any{"Value": posStr}),
+		lang.X("hand_history.summary.players", "Players: {{.Value}}", map[string]any{"Value": fmt.Sprintf("%d", s.NumPlayers)}),
+	}
+	return line1, line2
+}
+
+// NewHandHistoryTabFromSummaries creates the "Hand History" tab from lightweight summaries.
+// Summaries should already be in newest-first order (as returned by ListHandSummaries).
+// onFetchHand is called (in a goroutine by the caller) when the user selects a hand;
+// the controller fetches full hand data and calls handHistoryTabView.UpdateDetail.
+// Returns the root canvas object and the detailContent container so the controller
+// can replace its content via UpdateDetail.
+func NewHandHistoryTabFromSummaries(summaries []persistence.HandSummary, state *HandHistoryViewState, onFetchHand func(uid string)) (fyne.CanvasObject, *fyne.Container) {
+	if len(summaries) == 0 {
+		dc := container.NewStack()
+		dc.Objects = []fyne.CanvasObject{newCenteredEmptyState(lang.X("hand_history.no_hands", "No hands recorded yet.\nStart playing in the VR Poker world!"))}
+		return newCenteredEmptyState(lang.X("hand_history.no_hands", "No hands recorded yet.\nStart playing in the VR Poker world!")), dc
+	}
+	if state == nil {
+		state = &HandHistoryViewState{}
+	}
+
+	detailContent := container.NewStack()
+	detailContent.Objects = []fyne.CanvasObject{buildDetailPanelEmpty(lang.X("hand_history.select_hand", "Select a hand to see details."))}
+	rowRefs := make(map[fyne.CanvasObject]*handListEntryRefs)
+
+	list := widget.NewList(
+		func() int { return len(summaries) },
+		func() fyne.CanvasObject {
+			row, refs := newHandListEntryRow()
+			rowRefs[row] = refs
+			return row
+		},
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			s := summaries[id]
+			line1, line2 := handSummaryEntryFieldsFromSummary(s)
+			if refs, ok := rowRefs[obj]; ok {
+				refs.setFields(line1, line2)
+			}
+		},
+	)
+
+	list.OnSelected = func(id widget.ListItemID) {
+		s := summaries[id]
+		state.SelectedHandKey = "uid:" + s.HandUID
+
+		// Show a loading indicator immediately on the main thread.
+		loadingLabel := widget.NewLabel(lang.X("hand_history.detail.loading", "Loading hand details…"))
+		loadingLabel.Alignment = fyne.TextAlignCenter
+		detailContent.Objects = []fyne.CanvasObject{container.NewCenter(loadingLabel)}
+		detailContent.Refresh()
+
+		// Kick off async fetch; the controller replaces detailContent when done.
+		if onFetchHand != nil {
+			go onFetchHand(s.HandUID)
+		}
+	}
+
+	if state.SelectedHandKey != "" {
+		for i, s := range summaries {
+			if "uid:"+s.HandUID == state.SelectedHandKey {
+				list.Select(i)
+				break
+			}
+		}
+	}
+
+	split := container.NewHSplit(list, detailContent)
+	split.Offset = 0.48
+
+	title := widget.NewLabelWithStyle(lang.X("hand_history.title", "Recent Hands"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	subtitle := widget.NewLabel(lang.X("hand_history.subtitle", "Select a hand to inspect street-by-street action flow."))
+	subtitle.Wrapping = fyne.TextWrapWord
+
+	return container.NewBorder(container.NewVBox(title, subtitle, newSectionDivider()), nil, nil, nil, split), detailContent
 }

@@ -49,7 +49,7 @@ func (r *MemoryRepository) upsertHandsLocked(hands []PersistedHand) UpsertResult
 		} else {
 			res.Inserted++
 		}
-		r.hands[uid] = inMemoryEntry{hand: cloneHand(ph.Hand), source: ph.Source}
+		r.hands[uid] = inMemoryEntry{hand: parser.CloneHand(ph.Hand), source: ph.Source}
 	}
 	return res
 }
@@ -78,7 +78,7 @@ func (r *MemoryRepository) ListHands(_ context.Context, f HandFilter) ([]*parser
 				continue
 			}
 		}
-		copyHand := cloneHand(h)
+		copyHand := parser.CloneHand(h)
 		copyHand.HandUID = uid
 		out = append(out, copyHand)
 	}
@@ -98,6 +98,126 @@ func (r *MemoryRepository) CountHands(ctx context.Context, f HandFilter) (int, e
 	return len(hands), nil
 }
 
+// GetHandByUID returns the full hand for the given UID, or nil if not found.
+func (r *MemoryRepository) GetHandByUID(_ context.Context, uid string) (*parser.Hand, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	entry, ok := r.hands[uid]
+	if !ok || entry.hand == nil {
+		return nil, nil
+	}
+	h := parser.CloneHand(entry.hand)
+	h.HandUID = uid
+	return h, nil
+}
+
+func (r *MemoryRepository) ListHandSummaries(_ context.Context, f HandFilter) ([]HandSummary, int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	out := make([]HandSummary, 0, len(r.hands))
+	for uid, entry := range r.hands {
+		h := entry.hand
+		if h == nil || !h.IsComplete {
+			continue
+		}
+		localSeat := h.LocalPlayerSeat
+		if localSeat < 0 {
+			continue
+		}
+		if f.FromTime != nil && h.StartTime.Before(*f.FromTime) {
+			continue
+		}
+		if f.ToTime != nil && h.StartTime.After(*f.ToTime) {
+			continue
+		}
+		if _, ok := h.Players[localSeat]; !ok {
+			continue
+		}
+
+		s := HandSummary{
+			HandUID:    uid,
+			StartTime:  h.StartTime,
+			NumPlayers: h.NumPlayers,
+			TotalPot:   h.TotalPot,
+			IsComplete: h.IsComplete,
+			LocalSeat:  localSeat,
+		}
+
+		// Populate local player fields.
+		pi := h.Players[localSeat]
+		if pi != nil {
+			s.PotWon = pi.PotWon
+			s.Won = pi.Won
+			if pi.Position != 0 {
+				s.Position = pi.Position.String()
+			}
+			if len(pi.HoleCards) == 2 {
+				s.HoleCard0 = pi.HoleCards[0].Rank + pi.HoleCards[0].Suit
+				s.HoleCard1 = pi.HoleCards[1].Rank + pi.HoleCards[1].Suit
+			}
+			// Compute NetChips = PotWon - total invested by local player.
+			var invested int
+			for _, act := range pi.Actions {
+				invested += act.Amount
+			}
+			s.NetChips = s.PotWon - invested
+		}
+
+		out = append(out, s)
+	}
+
+	// Newest first (DESC by start_time).
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].StartTime.After(out[j].StartTime)
+	})
+
+	fullCount := len(out)
+	if f.Limit > 0 {
+		start := f.Offset
+		if start > len(out) {
+			start = len(out)
+		}
+		end := start + f.Limit
+		if end > len(out) {
+			end = len(out)
+		}
+		out = out[start:end]
+	}
+
+	return out, fullCount, nil
+}
+
+func (r *MemoryRepository) ListHandsAfter(_ context.Context, after time.Time, localSeat int) ([]*parser.Hand, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	out := make([]*parser.Hand, 0)
+	for uid, entry := range r.hands {
+		h := entry.hand
+		if h == nil || !h.IsComplete {
+			continue
+		}
+		if h.StartTime.IsZero() || !h.StartTime.After(after) {
+			continue
+		}
+		if localSeat >= 0 {
+			if _, ok := h.Players[localSeat]; !ok {
+				continue
+			}
+		}
+		copyHand := parser.CloneHand(h)
+		copyHand.HandUID = uid
+		out = append(out, copyHand)
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].StartTime.Before(out[j].StartTime)
+	})
+
+	return out, nil
+}
+
 func (r *MemoryRepository) GetCursor(_ context.Context, sourcePath string) (*ImportCursor, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -107,6 +227,10 @@ func (r *MemoryRepository) GetCursor(_ context.Context, sourcePath string) (*Imp
 		return nil, nil
 	}
 	copyCursor := c
+	if c.WorldCtx != nil {
+		wc := *c.WorldCtx // parser.WorldContext is a flat struct; shallow copy is sufficient
+		copyCursor.WorldCtx = &wc
+	}
 	return &copyCursor, nil
 }
 
@@ -121,6 +245,18 @@ func (r *MemoryRepository) SaveCursor(_ context.Context, c ImportCursor) error {
 	return nil
 }
 
+func (r *MemoryRepository) MarkFullyImported(_ context.Context, sourcePath string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if c, ok := r.cursors[sourcePath]; ok {
+		c.IsFullyImported = true
+		c.UpdatedAt = time.Now()
+		r.cursors[sourcePath] = c
+	}
+	return nil
+}
+
 func (r *MemoryRepository) SaveImportBatch(_ context.Context, hands []PersistedHand, c ImportCursor) (UpsertResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -131,26 +267,4 @@ func (r *MemoryRepository) SaveImportBatch(_ context.Context, hands []PersistedH
 	}
 	r.cursors[c.SourcePath] = c
 	return res, nil
-}
-
-func cloneHand(h *parser.Hand) *parser.Hand {
-	if h == nil {
-		return nil
-	}
-	copyHand := *h
-	copyHand.CommunityCards = append([]parser.Card(nil), h.CommunityCards...)
-	copyHand.ActiveSeats = append([]int(nil), h.ActiveSeats...)
-	copyHand.InstanceUsers = append([]parser.InstanceUser(nil), h.InstanceUsers...)
-	copyHand.Anomalies = append([]parser.HandAnomaly(nil), h.Anomalies...)
-	copyHand.Players = make(map[int]*parser.PlayerHandInfo, len(h.Players))
-	for seat, pi := range h.Players {
-		if pi == nil {
-			continue
-		}
-		copyPI := *pi
-		copyPI.HoleCards = append([]parser.Card(nil), pi.HoleCards...)
-		copyPI.Actions = append([]parser.PlayerAction(nil), pi.Actions...)
-		copyHand.Players[seat] = &copyPI
-	}
-	return &copyHand
 }

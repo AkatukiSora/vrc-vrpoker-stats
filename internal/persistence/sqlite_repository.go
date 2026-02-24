@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
 	_ "modernc.org/sqlite"
 )
 
@@ -251,6 +253,11 @@ func insertHandChildrenTx(ctx context.Context, tx *sql.Tx, uid string, h *parser
 		}
 	}
 
+	pocketCategoryID, finalClassID, err := computeHandFilterIDs(ctx, tx, h)
+	if err != nil {
+		return err
+	}
+
 	seats := make([]int, 0, len(h.Players))
 	for seat := range h.Players {
 		seats = append(seats, seat)
@@ -262,9 +269,20 @@ func insertHandChildrenTx(ctx context.Context, tx *sql.Tx, uid string, h *parser
 		if pi == nil {
 			continue
 		}
+		pocketID := sql.NullInt64{}
+		finalID := sql.NullInt64{}
+		if seat == h.LocalPlayerSeat {
+			if pocketCategoryID > 0 {
+				pocketID = sql.NullInt64{Int64: int64(pocketCategoryID), Valid: true}
+			}
+			if finalClassID > 0 {
+				finalID = sql.NullInt64{Int64: int64(finalClassID), Valid: true}
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO hand_players(
-			hand_uid, seat_id, position, showed_down, won, pot_won, vpip, pfr, three_bet, fold_to_3bet, folded_pf
-		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			hand_uid, seat_id, position, showed_down, won, pot_won, vpip, pfr, three_bet, fold_to_3bet, folded_pf,
+			pocket_category_id, final_class_id
+		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			uid,
 			seat,
 			int(pi.Position),
@@ -276,6 +294,8 @@ func insertHandChildrenTx(ctx context.Context, tx *sql.Tx, uid string, h *parser
 			boolToInt(pi.ThreeBet),
 			boolToInt(pi.FoldTo3Bet),
 			boolToInt(pi.FoldedPF),
+			pocketID,
+			finalID,
 		); err != nil {
 			return err
 		}
@@ -421,6 +441,87 @@ func (r *SQLiteRepository) ListHands(ctx context.Context, f HandFilter) ([]*pars
 		out = append(out, h)
 	}
 	return out, nil
+}
+
+// GetHandByUID fetches the full hand data for a single hand UID.
+// Returns nil, nil if the hand is not found.
+func (r *SQLiteRepository) GetHandByUID(ctx context.Context, uid string) (*parser.Hand, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT hand_uid, start_time, end_time, is_complete, stats_eligible, has_anomaly,
+		local_seat, world_id, world_display_name, instance_uid, instance_type, instance_owner_user_uid, instance_region,
+		sb_seat, bb_seat, num_players, total_pot, winner_seat, win_type
+		FROM hands WHERE hand_uid = ?`, uid)
+
+	var startStr, endStr string
+	var isComplete, statsEligible, hasAnomaly int
+	var localSeat int
+	var worldID sql.NullString
+	var worldDisplayName string
+	var instanceUID sql.NullString
+	var instanceType string
+	var instanceOwner sql.NullString
+	var instanceRegion sql.NullString
+	var sbSeat, bbSeat, numPlayers, totalPot, winnerSeat int
+	var winType string
+
+	err := row.Scan(
+		&uid,
+		&startStr,
+		&endStr,
+		&isComplete,
+		&statsEligible,
+		&hasAnomaly,
+		&localSeat,
+		&worldID,
+		&worldDisplayName,
+		&instanceUID,
+		&instanceType,
+		&instanceOwner,
+		&instanceRegion,
+		&sbSeat,
+		&bbSeat,
+		&numPlayers,
+		&totalPot,
+		&winnerSeat,
+		&winType,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	startTime, _ := time.Parse(time.RFC3339Nano, startStr)
+	endTime, _ := time.Parse(time.RFC3339Nano, endStr)
+
+	h := &parser.Hand{
+		HandUID:          uid,
+		StartTime:        startTime,
+		EndTime:          endTime,
+		IsComplete:       isComplete == 1,
+		StatsEligible:    statsEligible == 1,
+		HasAnomaly:       hasAnomaly == 1,
+		LocalPlayerSeat:  localSeat,
+		WorldID:          worldID.String,
+		WorldDisplayName: worldDisplayName,
+		InstanceUID:      instanceUID.String,
+		InstanceType:     parser.InstanceType(instanceType),
+		InstanceOwner:    instanceOwner.String,
+		InstanceRegion:   instanceRegion.String,
+		SBSeat:           sbSeat,
+		BBSeat:           bbSeat,
+		NumPlayers:       numPlayers,
+		TotalPot:         totalPot,
+		WinnerSeat:       winnerSeat,
+		WinType:          winType,
+		Players:          make(map[int]*parser.PlayerHandInfo),
+	}
+
+	byUID := map[string]*parser.Hand{uid: h}
+	if err := r.loadAllHandChildren(ctx, []string{uid}, byUID); err != nil {
+		return nil, err
+	}
+	return h, nil
 }
 
 // inClause builds a SQL "IN (?, ?, ...)" placeholder string and returns the
@@ -593,6 +694,217 @@ func (r *SQLiteRepository) loadHandChildrenChunk(ctx context.Context, uids []str
 	return nil
 }
 
+func (r *SQLiteRepository) ListHandSummaries(ctx context.Context, f HandFilter) ([]HandSummary, int, error) {
+	// Build WHERE clause: always restrict to complete hands, plus optional time range.
+	where := " WHERE h.is_complete = 1 AND h.local_seat >= 0"
+	args := make([]any, 0, 6)
+	if f.FromTime != nil {
+		where += ` AND h.start_time >= ?`
+		args = append(args, f.FromTime.UTC().Format(time.RFC3339Nano))
+	}
+	if f.ToTime != nil {
+		where += ` AND h.start_time <= ?`
+		args = append(args, f.ToTime.UTC().Format(time.RFC3339Nano))
+	}
+	if len(f.PocketCategoryIDs) > 0 {
+		where += " AND hp.pocket_category_id IN (" + strings.TrimRight(strings.Repeat("?,", len(f.PocketCategoryIDs)), ",") + ")"
+		for _, id := range f.PocketCategoryIDs {
+			args = append(args, id)
+		}
+	}
+	if len(f.FinalClassIDs) > 0 {
+		where += " AND hp.final_class_id IN (" + strings.TrimRight(strings.Repeat("?,", len(f.FinalClassIDs)), ",") + ")"
+		for _, id := range f.FinalClassIDs {
+			args = append(args, id)
+		}
+	}
+
+	// Lightweight summary query for list view. Only local-player data is joined.
+	query := `
+SELECT
+    h.hand_uid,
+    h.start_time,
+    h.num_players,
+    h.total_pot,
+    h.is_complete,
+    h.local_seat                                                    AS local_seat,
+    COALESCE(hp.position, 0)                                        AS position_int,
+    COALESCE(hp.pot_won, 0)                                         AS pot_won,
+    COALESCE(hp.pot_won, 0) - COALESCE(ag.invested, 0)             AS net_chips,
+    COALESCE(hp.won, 0)                                             AS won,
+    COALESCE(hc0.rank || hc0.suit, '')                              AS hole_card_0,
+    COALESCE(hc1.rank || hc1.suit, '')                              AS hole_card_1,
+    COALESCE(bc.community_cards, '')                               AS community_cards,
+    COUNT(*) OVER()                                                 AS total_count
+FROM hands h
+INNER JOIN hand_players hp
+    ON hp.hand_uid = h.hand_uid AND hp.seat_id = h.local_seat
+LEFT JOIN (
+    SELECT ha.hand_uid, SUM(ha.amount) AS invested
+    FROM hand_actions ha
+    JOIN hands h2 ON h2.hand_uid = ha.hand_uid
+    WHERE ha.seat_id = h2.local_seat
+    GROUP BY ha.hand_uid
+) ag ON ag.hand_uid = h.hand_uid
+LEFT JOIN hand_hole_cards hc0
+    ON hc0.hand_uid = h.hand_uid AND hc0.seat_id = hp.seat_id AND hc0.card_index = 0
+LEFT JOIN hand_hole_cards hc1
+    ON hc1.hand_uid = h.hand_uid AND hc1.seat_id = hp.seat_id AND hc1.card_index = 1
+LEFT JOIN (
+    SELECT hand_uid,
+           GROUP_CONCAT(rank || suit, ' ') AS community_cards
+    FROM (SELECT hand_uid, rank, suit FROM hand_board_cards ORDER BY hand_uid ASC, card_index ASC)
+    GROUP BY hand_uid
+) bc ON bc.hand_uid = h.hand_uid` +
+		where + `
+ORDER BY h.start_time DESC`
+
+	if f.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d OFFSET %d", f.Limit, f.Offset)
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("ListHandSummaries query: %w", err)
+	}
+	defer rows.Close()
+
+	var out []HandSummary
+	totalCount := 0
+	for rows.Next() {
+		var s HandSummary
+		var startStr string
+		var isComplete, won int
+		var positionInt int
+		var rowTotal int
+		if err := rows.Scan(
+			&s.HandUID,
+			&startStr,
+			&s.NumPlayers,
+			&s.TotalPot,
+			&isComplete,
+			&s.LocalSeat,
+			&positionInt,
+			&s.PotWon,
+			&s.NetChips,
+			&won,
+			&s.HoleCard0,
+			&s.HoleCard1,
+			&s.CommunityCards,
+			&rowTotal,
+		); err != nil {
+			return nil, 0, fmt.Errorf("ListHandSummaries scan: %w", err)
+		}
+		if totalCount == 0 {
+			totalCount = rowTotal
+		}
+		s.StartTime, _ = time.Parse(time.RFC3339Nano, startStr)
+		s.IsComplete = isComplete == 1
+		s.Won = won == 1
+		if positionInt != 0 {
+			s.Position = parser.Position(positionInt).String()
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("ListHandSummaries rows: %w", err)
+	}
+	return out, totalCount, nil
+}
+
+func (r *SQLiteRepository) ListHandsAfter(ctx context.Context, after time.Time, localSeat int) ([]*parser.Hand, error) {
+	query := `SELECT hand_uid, start_time, end_time, is_complete, stats_eligible, has_anomaly,
+		local_seat, world_id, world_display_name, instance_uid, instance_type, instance_owner_user_uid, instance_region,
+		sb_seat, bb_seat, num_players, total_pot, winner_seat, win_type
+		FROM hands
+		WHERE is_complete = 1 AND stats_eligible = 1 AND start_time > ?
+		ORDER BY start_time ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, after.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	uids := make([]string, 0)
+	byUID := make(map[string]*parser.Hand)
+
+	for rows.Next() {
+		var uid string
+		var startStr, endStr string
+		var isComplete, statsEligible, hasAnomaly int
+		var localSeatDB int
+		var worldID sql.NullString
+		var worldDisplayName string
+		var instanceUID sql.NullString
+		var instanceType string
+		var instanceOwner sql.NullString
+		var instanceRegion sql.NullString
+		var sbSeat, bbSeat, numPlayers, totalPot, winnerSeat int
+		var winType string
+
+		if err := rows.Scan(
+			&uid, &startStr, &endStr,
+			&isComplete, &statsEligible, &hasAnomaly,
+			&localSeatDB,
+			&worldID, &worldDisplayName, &instanceUID, &instanceType, &instanceOwner, &instanceRegion,
+			&sbSeat, &bbSeat, &numPlayers, &totalPot, &winnerSeat, &winType,
+		); err != nil {
+			return nil, err
+		}
+
+		startTime, _ := time.Parse(time.RFC3339Nano, startStr)
+		endTime, _ := time.Parse(time.RFC3339Nano, endStr)
+
+		h := &parser.Hand{
+			HandUID:          uid,
+			StartTime:        startTime,
+			EndTime:          endTime,
+			IsComplete:       isComplete == 1,
+			StatsEligible:    statsEligible == 1,
+			HasAnomaly:       hasAnomaly == 1,
+			LocalPlayerSeat:  localSeatDB,
+			WorldID:          worldID.String,
+			WorldDisplayName: worldDisplayName,
+			InstanceUID:      instanceUID.String,
+			InstanceType:     parser.InstanceType(instanceType),
+			InstanceOwner:    instanceOwner.String,
+			InstanceRegion:   instanceRegion.String,
+			SBSeat:           sbSeat,
+			BBSeat:           bbSeat,
+			NumPlayers:       numPlayers,
+			TotalPot:         totalPot,
+			WinnerSeat:       winnerSeat,
+			WinType:          winType,
+			Players:          make(map[int]*parser.PlayerHandInfo),
+		}
+		uids = append(uids, uid)
+		byUID[uid] = h
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(uids) == 0 {
+		return nil, nil
+	}
+
+	if err := r.loadAllHandChildren(ctx, uids, byUID); err != nil {
+		return nil, err
+	}
+
+	out := make([]*parser.Hand, 0, len(uids))
+	for _, uid := range uids {
+		h := byUID[uid]
+		if localSeat >= 0 {
+			if _, ok := h.Players[localSeat]; !ok {
+				continue
+			}
+		}
+		out = append(out, h)
+	}
+	return out, nil
+}
+
 func (r *SQLiteRepository) CountHands(ctx context.Context, f HandFilter) (int, error) {
 	var query string
 	var args []any
@@ -616,12 +928,18 @@ func (r *SQLiteRepository) CountHands(ctx context.Context, f HandFilter) (int, e
 }
 
 func (r *SQLiteRepository) GetCursor(ctx context.Context, sourcePath string) (*ImportCursor, error) {
-	q := `SELECT source_path, next_byte_offset, next_line_number, last_event_time, last_hand_uid, parser_state_json, updated_at
-	FROM import_cursors WHERE source_path = ?`
+	q := `SELECT source_path, next_byte_offset, next_line_number, last_event_time, last_hand_uid, parser_state_json,
+		is_fully_imported,
+		world_id, world_display_name, instance_uid, instance_type, instance_owner, instance_region,
+		in_poker_world,
+		updated_at
+		FROM import_cursors WHERE source_path = ?`
 	row := r.db.QueryRowContext(ctx, q, sourcePath)
 	var c ImportCursor
 	var lastEvent sql.NullString
-	var updated string
+	var updatedAt string
+	var isFullyImported, inPokerWorld int
+	var worldID, worldDisplayName, instanceUID, instanceType, instanceOwner, instanceRegion sql.NullString
 	if err := row.Scan(
 		&c.SourcePath,
 		&c.NextByteOffset,
@@ -629,21 +947,43 @@ func (r *SQLiteRepository) GetCursor(ctx context.Context, sourcePath string) (*I
 		&lastEvent,
 		&c.LastHandUID,
 		&c.ParserStateJSON,
-		&updated,
+		&isFullyImported,
+		&worldID,
+		&worldDisplayName,
+		&instanceUID,
+		&instanceType,
+		&instanceOwner,
+		&instanceRegion,
+		&inPokerWorld,
+		&updatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
 	}
+	c.IsFullyImported = isFullyImported == 1
 	if lastEvent.Valid {
 		ts, err := time.Parse(time.RFC3339Nano, lastEvent.String)
 		if err == nil {
 			c.LastEventTime = &ts
 		}
 	}
-	if t, err := time.Parse(time.RFC3339Nano, updated); err == nil {
+	if t, err := time.Parse(time.RFC3339Nano, updatedAt); err == nil {
 		c.UpdatedAt = t
+	}
+	// Restore world context if any world data was persisted.
+	if worldID.Valid || instanceUID.Valid || inPokerWorld == 1 {
+		c.WorldCtx = &parser.WorldContext{
+			WorldID:          worldID.String,
+			WorldDisplayName: worldDisplayName.String,
+			InstanceUID:      instanceUID.String,
+			InstanceType:     parser.InstanceType(instanceType.String),
+			InstanceOwner:    instanceOwner.String,
+			InstanceRegion:   instanceRegion.String,
+			InPokerWorld:     inPokerWorld == 1,
+			WorldDetected:    inPokerWorld == 1, // if we were in-world, world was detected
+		}
 	}
 	return &c, nil
 }
@@ -652,6 +992,15 @@ func (r *SQLiteRepository) SaveCursor(ctx context.Context, c ImportCursor) error
 	return r.withTx(ctx, func(tx *sql.Tx) error {
 		return saveCursorTx(ctx, tx, c)
 	})
+}
+
+func (r *SQLiteRepository) MarkFullyImported(ctx context.Context, sourcePath string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE import_cursors SET is_fully_imported=1, updated_at=? WHERE source_path=?`,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		sourcePath,
+	)
+	return err
 }
 
 func (r *SQLiteRepository) SaveImportBatch(ctx context.Context, hands []PersistedHand, c ImportCursor) (UpsertResult, error) {
@@ -679,15 +1028,46 @@ func saveCursorTx(ctx context.Context, tx *sql.Tx, c ImportCursor) error {
 	if c.LastEventTime != nil {
 		lastEvent = c.LastEventTime.UTC().Format(time.RFC3339Nano)
 	}
+
+	// World context columns — all nullable.
+	// hand_id_counter exists in the schema (migration 00006) but is intentionally
+	// never written: hand.ID is an in-memory sequence not stored in the hands table,
+	// so its continuity across restarts has no effect on correctness.
+	var worldID, worldDisplayName, instanceUID, instanceType, instanceOwner, instanceRegion any
+	inPokerWorld := 0
+	if wc := c.WorldCtx; wc != nil {
+		worldID = nullIfEmpty(wc.WorldID)
+		worldDisplayName = nullIfEmpty(wc.WorldDisplayName)
+		instanceUID = nullIfEmpty(wc.InstanceUID)
+		instanceType = nullIfEmpty(string(wc.InstanceType))
+		instanceOwner = nullIfEmpty(wc.InstanceOwner)
+		instanceRegion = nullIfEmpty(wc.InstanceRegion)
+		if wc.InPokerWorld {
+			inPokerWorld = 1
+		}
+	}
+
 	q := `INSERT INTO import_cursors(
-		source_path, next_byte_offset, next_line_number, last_event_time, last_hand_uid, parser_state_json, updated_at
-	) VALUES(?, ?, ?, ?, ?, ?, ?)
+		source_path, next_byte_offset, next_line_number, last_event_time, last_hand_uid, parser_state_json,
+		is_fully_imported,
+		world_id, world_display_name, instance_uid, instance_type, instance_owner, instance_region,
+		in_poker_world,
+		updated_at
+	) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(source_path) DO UPDATE SET
 		next_byte_offset=excluded.next_byte_offset,
 		next_line_number=excluded.next_line_number,
 		last_event_time=excluded.last_event_time,
 		last_hand_uid=excluded.last_hand_uid,
 		parser_state_json=excluded.parser_state_json,
+		is_fully_imported=excluded.is_fully_imported,
+		world_id=excluded.world_id,
+		world_display_name=excluded.world_display_name,
+		instance_uid=excluded.instance_uid,
+		instance_type=excluded.instance_type,
+		instance_owner=excluded.instance_owner,
+		instance_region=excluded.instance_region,
+		in_poker_world=excluded.in_poker_world,
 		updated_at=excluded.updated_at`
 	_, err := tx.ExecContext(
 		ctx,
@@ -698,6 +1078,14 @@ func saveCursorTx(ctx context.Context, tx *sql.Tx, c ImportCursor) error {
 		lastEvent,
 		c.LastHandUID,
 		c.ParserStateJSON,
+		boolToInt(c.IsFullyImported),
+		worldID,
+		worldDisplayName,
+		instanceUID,
+		instanceType,
+		instanceOwner,
+		instanceRegion,
+		inPokerWorld,
 		updatedAt.UTC().Format(time.RFC3339Nano),
 	)
 	return err
@@ -741,6 +1129,118 @@ func boolToInt(v bool) int {
 		return 1
 	}
 	return 0
+}
+
+func computeHandFilterIDs(ctx context.Context, tx *sql.Tx, h *parser.Hand) (int, int, error) {
+	if h == nil || h.LocalPlayerSeat < 0 {
+		return 0, 0, nil
+	}
+	pi, ok := h.Players[h.LocalPlayerSeat]
+	if !ok || pi == nil || len(pi.HoleCards) != 2 {
+		return 0, 0, nil
+	}
+
+	pocketCats := stats.ClassifyPocketHand(pi.HoleCards[0], pi.HoleCards[1])
+	pocketID, err := lookupPocketCategoryID(ctx, tx, pocketCats)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	finalID := 0
+	if len(h.CommunityCards) >= 5 {
+		finalClass := stats.ClassifyMadeHand(pi.HoleCards, h.CommunityCards)
+		id, err := lookupFinalClassID(ctx, tx, finalClass)
+		if err != nil {
+			return 0, 0, err
+		}
+		finalID = id
+	}
+
+	return pocketID, finalID, nil
+}
+
+func lookupPocketCategoryID(ctx context.Context, tx *sql.Tx, cats []stats.PocketCategory) (int, error) {
+	if len(cats) == 0 {
+		return 0, nil
+	}
+	chosen := choosePocketCategory(cats)
+	code := pocketCategoryCode(chosen)
+	if code == "" {
+		return 0, nil
+	}
+	var id int
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM pocket_categories WHERE code = ?`, code).Scan(&id); err != nil {
+		return 0, fmt.Errorf("lookup pocket category id: %w", err)
+	}
+	return id, nil
+}
+
+func lookupFinalClassID(ctx context.Context, tx *sql.Tx, cls string) (int, error) {
+	code := finalClassCode(cls)
+	if code == "" {
+		return 0, nil
+	}
+	var id int
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM final_classes WHERE code = ?`, code).Scan(&id); err != nil {
+		return 0, fmt.Errorf("lookup final class id: %w", err)
+	}
+	return id, nil
+}
+
+func pocketCategoryCode(c stats.PocketCategory) string {
+	switch c {
+	case stats.PocketPremium:
+		return "premium"
+	case stats.PocketSecondPremium:
+		return "second_premium"
+	case stats.PocketPair:
+		return "pair"
+	case stats.PocketSuitedConnector:
+		return "suited_connector"
+	case stats.PocketSuitedOneGapper:
+		return "suited_one_gapper"
+	case stats.PocketSuited:
+		return "suited"
+	case stats.PocketAx:
+		return "ax"
+	case stats.PocketKx:
+		return "kx"
+	case stats.PocketBroadwayOffsuit:
+		return "broadway_offsuit"
+	case stats.PocketConnector:
+		return "connector"
+	default:
+		return ""
+	}
+}
+
+func choosePocketCategory(cats []stats.PocketCategory) stats.PocketCategory {
+	priority := []stats.PocketCategory{
+		stats.PocketPremium,
+		stats.PocketSecondPremium,
+		stats.PocketPair,
+		stats.PocketSuitedConnector,
+		stats.PocketSuitedOneGapper,
+		stats.PocketSuited,
+		stats.PocketBroadwayOffsuit,
+		stats.PocketConnector,
+		stats.PocketAx,
+		stats.PocketKx,
+	}
+	set := make(map[stats.PocketCategory]bool, len(cats))
+	for _, c := range cats {
+		set[c] = true
+	}
+	for _, p := range priority {
+		if set[p] {
+			return p
+		}
+	}
+	return cats[0]
+}
+
+func finalClassCode(cls string) string {
+	return strings.ToLower(strings.ReplaceAll(cls, " ", "_"))
 }
 
 func clearHandChildrenTx(ctx context.Context, tx *sql.Tx, handUID string) error {

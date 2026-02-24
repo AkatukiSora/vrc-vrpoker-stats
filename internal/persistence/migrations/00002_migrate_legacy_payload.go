@@ -136,7 +136,24 @@ func Up00002(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
-func Down00002(context.Context, *sql.Tx) error {
+func Down00002(ctx context.Context, tx *sql.Tx) error {
+	// Drop the normalized hand tables created by this migration.
+	// hands_legacy is also dropped here if it was created during the Up migration.
+	tables := []string{
+		"hand_anomalies",
+		"hand_actions",
+		"hand_hole_cards",
+		"hand_board_cards",
+		"hand_players",
+		"hand_occurrences",
+		"hands",
+		"hands_legacy",
+	}
+	for _, t := range tables {
+		if _, err := tx.ExecContext(ctx, "DROP TABLE IF EXISTS "+t); err != nil {
+			return fmt.Errorf("drop %s: %w", t, err)
+		}
+	}
 	return nil
 }
 

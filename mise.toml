@@ -145,6 +145,25 @@ run = '''
   echo "  - Run 'mise run test' to run tests"
 '''
 
+[tasks.gen-testlogs]
+description = "Generate synthetic VRChat poker log files for testing"
+run = '''
+  OUTPUT_DIR="${OUTPUT_DIR:-${HOME}/testlogs}"
+  COUNT="${COUNT:-100}"
+  MIN_SIZE="${MIN_SIZE:-2097152}"
+  MAX_SIZE="${MAX_SIZE:-52428800}"
+  SEED="${SEED:-0}"
+  START_DATE="${START_DATE:-2025-01-01}"
+  go run ./tools/gen_testlog \
+    --input-dir . \
+    --output-dir "${OUTPUT_DIR}" \
+    --count "${COUNT}" \
+    --min-size "${MIN_SIZE}" \
+    --max-size "${MAX_SIZE}" \
+    --seed "${SEED}" \
+    --start-date "${START_DATE}"
+'''
+
 [tasks.ci]
 description = "Run full CI pipeline locally (lint + test + build)"
 depends = ["lint", "test", "build"]
