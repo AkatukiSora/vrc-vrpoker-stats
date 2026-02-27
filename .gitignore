@@ -17,6 +17,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# Serena
+.serena/
+
 # Test output
 *.test
 coverage.out
