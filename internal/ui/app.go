@@ -281,6 +281,25 @@ func (a *App) rebuildNavigation() {
 func (a *App) initLogFile() {
 	slog.Info("bootstrapping log import")
 
+	stopRefresh := make(chan struct{})
+	defer close(stopRefresh)
+	a.workerWG.Add(1)
+	go func() {
+		defer a.workerWG.Done()
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-a.ctx.Done():
+				return
+			case <-stopRefresh:
+				return
+			case <-ticker.C:
+				a.doUpdateStats()
+			}
+		}
+	}()
+
 	// Show any data already in the DB before bootstrap begins.
 	// This makes the UI responsive even when re-importing takes a while.
 	a.doUpdateStats()
