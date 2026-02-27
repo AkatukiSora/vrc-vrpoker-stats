@@ -282,8 +282,11 @@ type handHistoryTabView struct {
 	onFetchHand func(uid string)
 
 	// detailContent holds the right-side detail panel; kept as a typed ref so
-	// UpdateDetail can replace its content from outside NewHandHistoryTabFromSummaries.
-	detailContent *fyne.Container
+	// UpdateDetail can replace its content while reusing the same container.
+	detailContent  *fyne.Container
+	list           *widget.List
+	split          *container.Split
+	suppressSelect bool
 }
 
 func newHandHistoryTabView(state *HandHistoryViewState, onLoadPage func(page int), onFetchHand func(uid string)) *handHistoryTabView {
@@ -302,6 +305,11 @@ func (v *handHistoryTabView) UpdatePage(summaries []persistence.HandSummary, pag
 	v.page = page
 	v.totalCount = totalCount
 	v.filteredCount = len(summaries)
+	v.ensureInitialized()
+	if v.list != nil {
+		v.list.Refresh()
+	}
+	v.restoreSelection()
 	v.rebuild()
 }
 
@@ -318,6 +326,7 @@ func (v *handHistoryTabView) UpdateDetail(obj fyne.CanvasObject) {
 const handHistoryPageSize = 200
 
 func (v *handHistoryTabView) rebuild() {
+	v.ensureInitialized()
 	totalPages := (v.totalCount + handHistoryPageSize - 1) / handHistoryPageSize
 	if totalPages < 1 {
 		totalPages = 1
@@ -340,8 +349,103 @@ func (v *handHistoryTabView) rebuild() {
 			}
 		},
 	)
-	content, detailContent := NewHandHistoryTabFromSummaries(v.summaries, v.state, v.onFetchHand)
-	v.detailContent = detailContent
+	var content fyne.CanvasObject
+	if len(v.summaries) == 0 {
+		content = newCenteredEmptyState(lang.X("hand_history.no_hands", "No hands recorded yet.\nStart playing in the VR Poker world!"))
+		v.showEmptyDetail()
+	} else {
+		content = v.split
+	}
+
+	title := widget.NewLabelWithStyle(lang.X("hand_history.title", "Recent Hands"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	subtitle := widget.NewLabel(lang.X("hand_history.subtitle", "Select a hand to inspect street-by-street action flow."))
+	subtitle.Wrapping = fyne.TextWrapWord
+	content = container.NewBorder(container.NewVBox(title, subtitle, newSectionDivider()), nil, nil, nil, content)
 	inner := container.NewBorder(panel, nil, nil, nil, content)
 	replaceViewContentPreservingLayout(v.root, inner)
+}
+
+func (v *handHistoryTabView) ensureInitialized() {
+	if v.state == nil {
+		v.state = &HandHistoryViewState{}
+	}
+	if v.detailContent == nil {
+		v.detailContent = container.NewStack()
+		v.detailContent.Objects = []fyne.CanvasObject{buildDetailPanelEmpty(lang.X("hand_history.select_hand", "Select a hand to see details."))}
+	}
+	if v.list != nil {
+		return
+	}
+	rowRefs := make(map[fyne.CanvasObject]*handListEntryRefs)
+	v.list = widget.NewList(
+		func() int { return len(v.summaries) },
+		func() fyne.CanvasObject {
+			row, refs := newHandListEntryRow()
+			rowRefs[row] = refs
+			return row
+		},
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			if id < 0 || id >= len(v.summaries) {
+				return
+			}
+			s := v.summaries[id]
+			line1, line2 := handSummaryEntryFieldsFromSummary(s)
+			if refs, ok := rowRefs[obj]; ok {
+				refs.setFields(line1, line2)
+			}
+		},
+	)
+
+	v.list.OnSelected = func(id widget.ListItemID) {
+		if id < 0 || id >= len(v.summaries) {
+			return
+		}
+		s := v.summaries[id]
+		v.state.SelectedHandKey = "uid:" + s.HandUID
+		if v.suppressSelect {
+			v.suppressSelect = false
+			return
+		}
+
+		loadingLabel := widget.NewLabel(lang.X("hand_history.detail.loading", "Loading hand details…"))
+		loadingLabel.Alignment = fyne.TextAlignCenter
+		v.detailContent.Objects = []fyne.CanvasObject{container.NewCenter(loadingLabel)}
+		v.detailContent.Refresh()
+
+		if v.onFetchHand != nil {
+			go v.onFetchHand(s.HandUID)
+		}
+	}
+
+	v.split = container.NewHSplit(v.list, v.detailContent)
+	v.split.Offset = 0.48
+}
+
+func (v *handHistoryTabView) restoreSelection() {
+	if v.list == nil {
+		return
+	}
+	if v.state == nil || v.state.SelectedHandKey == "" {
+		v.list.UnselectAll()
+		v.showEmptyDetail()
+		return
+	}
+	for i, s := range v.summaries {
+		if "uid:"+s.HandUID == v.state.SelectedHandKey {
+			v.suppressSelect = true
+			v.list.Select(i)
+			return
+		}
+	}
+	v.list.UnselectAll()
+	v.state.SelectedHandKey = ""
+	v.showEmptyDetail()
+}
+
+func (v *handHistoryTabView) showEmptyDetail() {
+	if v.detailContent == nil {
+		return
+	}
+	v.detailContent.Objects = []fyne.CanvasObject{buildDetailPanelEmpty(lang.X("hand_history.select_hand", "Select a hand to see details."))}
+	v.detailContent.Refresh()
 }
