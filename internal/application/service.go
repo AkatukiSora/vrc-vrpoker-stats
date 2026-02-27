@@ -295,6 +295,11 @@ func (s *Service) BootstrapImportAllLogsWithProgress(ctx context.Context, onProg
 			if err := s.saveImportBatch(ctx, res.hands, cursor); err != nil {
 				return "", fmt.Errorf("save %q: %w", res.path, err)
 			}
+			if len(res.hands) > 0 {
+				if earliest, ok := earliestStartTime(res.hands); ok {
+					s.resetIncrementalIfNeeded(earliest)
+				}
+			}
 
 			prog.Current++
 			prog.Path = res.path
@@ -383,6 +388,8 @@ func (s *Service) importFileFrom(ctx context.Context, path string, activate bool
 	byteOffset := startByte
 	handStartByte := startByte
 	parsedHands := p.HandCount() // already-restored hands don't count as new
+	var earliestNewStart time.Time
+	hasNewStart := false
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 4*1024*1024)
@@ -402,6 +409,15 @@ func (s *Service) importFileFrom(ctx context.Context, path string, activate bool
 		if p.HandCount() > parsedHands {
 			hands := p.GetHands()
 			newRows := collectNewPersistedHands(path, hands, &parsedHands, lineNo, &handStartLn, &handStartByte, lineStartByte, byteOffset)
+			for _, row := range newRows {
+				if row.Hand == nil || row.Hand.StartTime.IsZero() {
+					continue
+				}
+				if !hasNewStart || row.Hand.StartTime.Before(earliestNewStart) {
+					earliestNewStart = row.Hand.StartTime
+					hasNewStart = true
+				}
+			}
 			cursor := buildImportCursorWithContext(path, byteOffset, lineNo, p)
 			if err := s.saveImportBatch(ctx, newRows, cursor); err != nil {
 				return fmt.Errorf("save imported hands: %w", err)
@@ -414,6 +430,9 @@ func (s *Service) importFileFrom(ctx context.Context, path string, activate bool
 
 	if err := s.saveImportBatch(ctx, nil, buildImportCursorWithContext(path, byteOffset, lineNo, p)); err != nil {
 		return err
+	}
+	if hasNewStart {
+		s.resetIncrementalIfNeeded(earliestNewStart)
 	}
 
 	s.invalidateStatsCache()
@@ -497,6 +516,12 @@ func (s *Service) ImportLines(ctx context.Context, sourcePath string, lines []st
 	if err := s.saveImportBatch(ctx, newRows, cursor); err != nil {
 		return err
 	}
+	if len(newRows) > 0 {
+		earliestNewStart, hasNewStart := earliestStartTime(newRows)
+		if hasNewStart {
+			s.resetIncrementalIfNeeded(earliestNewStart)
+		}
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -513,6 +538,40 @@ func (s *Service) ImportLines(ctx context.Context, sourcePath string, lines []st
 
 	s.invalidateStatsCache()
 	return nil
+}
+
+func earliestStartTime(rows []persistence.PersistedHand) (time.Time, bool) {
+	var earliest time.Time
+	has := false
+	for _, row := range rows {
+		if row.Hand == nil || row.Hand.StartTime.IsZero() {
+			continue
+		}
+		if !has || row.Hand.StartTime.Before(earliest) {
+			earliest = row.Hand.StartTime
+			has = true
+		}
+	}
+	return earliest, has
+}
+
+func (s *Service) resetIncrementalIfNeeded(earliestNewStart time.Time) {
+	if earliestNewStart.IsZero() {
+		return
+	}
+	s.incMu.Lock()
+	defer s.incMu.Unlock()
+	if s.incCalc == nil {
+		return
+	}
+	if s.watermark.IsZero() {
+		return
+	}
+	if earliestNewStart.After(s.watermark) {
+		return
+	}
+	s.incCalc = nil
+	s.watermark = time.Time{}
 }
 
 func (s *Service) LogPath() string {
