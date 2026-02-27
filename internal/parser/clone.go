@@ -12,8 +12,8 @@ func (p *Parser) Clone() *Parser {
 		worldDetected:         p.worldDetected,
 		currentStreet:         p.currentStreet,
 		streetBetAmount:       p.streetBetAmount,
-		streetBets:            cloneIntMap(p.streetBets),
-		foldedThisHand:        cloneBoolMap(p.foldedThisHand),
+		streetBets:            cloneMap(p.streetBets),
+		foldedThisHand:        cloneMap(p.foldedThisHand),
 		pendingWinners:        append([]pendingWin(nil), p.pendingWinners...),
 		lastTimestamp:         p.lastTimestamp,
 		pendingLocalSeat:      p.pendingLocalSeat,
@@ -25,7 +25,7 @@ func (p *Parser) Clone() *Parser {
 		currentInstanceType:   p.currentInstanceType,
 		currentInstanceOwner:  p.currentInstanceOwner,
 		currentInstanceRegion: p.currentInstanceRegion,
-		currentInstanceUsers:  cloneStringMap(p.currentInstanceUsers),
+		currentInstanceUsers:  cloneMap(p.currentInstanceUsers),
 	}
 	clone.pendingLocalCards = append([]Card(nil), p.pendingLocalCards...)
 	clone.currentHand = cloneHand(p.currentHand)
@@ -59,6 +59,12 @@ func cloneHand(h *Hand) *Hand {
 	copyHand := *h
 	copyHand.CommunityCards = append([]Card(nil), h.CommunityCards...)
 	copyHand.ActiveSeats = append([]int(nil), h.ActiveSeats...)
+	if len(h.ActiveSeatSet) > 0 {
+		copyHand.ActiveSeatSet = make(map[int]struct{}, len(h.ActiveSeatSet))
+		for seat := range h.ActiveSeatSet {
+			copyHand.ActiveSeatSet[seat] = struct{}{}
+		}
+	}
 	copyHand.InstanceUsers = append([]InstanceUser(nil), h.InstanceUsers...)
 	copyHand.Anomalies = append([]HandAnomaly(nil), h.Anomalies...)
 	copyHand.Players = make(map[int]*PlayerHandInfo, len(h.Players))
@@ -78,33 +84,11 @@ func clonePlayerInfo(pi *PlayerHandInfo) *PlayerHandInfo {
 	return &copyPI
 }
 
-func cloneIntMap(in map[int]int) map[int]int {
+func cloneMap[K comparable, V any](in map[K]V) map[K]V {
 	if len(in) == 0 {
-		return make(map[int]int)
+		return make(map[K]V)
 	}
-	out := make(map[int]int, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
-}
-
-func cloneBoolMap(in map[int]bool) map[int]bool {
-	if len(in) == 0 {
-		return make(map[int]bool)
-	}
-	out := make(map[int]bool, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
-}
-
-func cloneStringMap(in map[string]string) map[string]string {
-	if len(in) == 0 {
-		return make(map[string]string)
-	}
-	out := make(map[string]string, len(in))
+	out := make(map[K]V, len(in))
 	for k, v := range in {
 		out[k] = v
 	}

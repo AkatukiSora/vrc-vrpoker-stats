@@ -352,68 +352,11 @@ func (r *SQLiteRepository) ListHands(ctx context.Context, f HandFilter) ([]*pars
 	byUID := make(map[string]*parser.Hand)
 
 	for rows.Next() {
-		var uid string
-		var startStr, endStr string
-		var isComplete, statsEligible, hasAnomaly int
-		var localSeat int
-		var worldID sql.NullString
-		var worldDisplayName string
-		var instanceUID sql.NullString
-		var instanceType string
-		var instanceOwner sql.NullString
-		var instanceRegion sql.NullString
-		var sbSeat, bbSeat, numPlayers, totalPot, winnerSeat int
-		var winType string
-
-		if err := rows.Scan(
-			&uid,
-			&startStr,
-			&endStr,
-			&isComplete,
-			&statsEligible,
-			&hasAnomaly,
-			&localSeat,
-			&worldID,
-			&worldDisplayName,
-			&instanceUID,
-			&instanceType,
-			&instanceOwner,
-			&instanceRegion,
-			&sbSeat,
-			&bbSeat,
-			&numPlayers,
-			&totalPot,
-			&winnerSeat,
-			&winType,
-		); err != nil {
+		h, err := scanHandRow(rows)
+		if err != nil {
 			return nil, err
 		}
-
-		startTime, _ := time.Parse(time.RFC3339Nano, startStr)
-		endTime, _ := time.Parse(time.RFC3339Nano, endStr)
-
-		h := &parser.Hand{
-			HandUID:          uid,
-			StartTime:        startTime,
-			EndTime:          endTime,
-			IsComplete:       isComplete == 1,
-			StatsEligible:    statsEligible == 1,
-			HasAnomaly:       hasAnomaly == 1,
-			LocalPlayerSeat:  localSeat,
-			WorldID:          worldID.String,
-			WorldDisplayName: worldDisplayName,
-			InstanceUID:      instanceUID.String,
-			InstanceType:     parser.InstanceType(instanceType),
-			InstanceOwner:    instanceOwner.String,
-			InstanceRegion:   instanceRegion.String,
-			SBSeat:           sbSeat,
-			BBSeat:           bbSeat,
-			NumPlayers:       numPlayers,
-			TotalPot:         totalPot,
-			WinnerSeat:       winnerSeat,
-			WinType:          winType,
-			Players:          make(map[int]*parser.PlayerHandInfo),
-		}
+		uid := h.HandUID
 		uids = append(uids, uid)
 		byUID[uid] = h
 	}
@@ -451,70 +394,12 @@ func (r *SQLiteRepository) GetHandByUID(ctx context.Context, uid string) (*parse
 		sb_seat, bb_seat, num_players, total_pot, winner_seat, win_type
 		FROM hands WHERE hand_uid = ?`, uid)
 
-	var startStr, endStr string
-	var isComplete, statsEligible, hasAnomaly int
-	var localSeat int
-	var worldID sql.NullString
-	var worldDisplayName string
-	var instanceUID sql.NullString
-	var instanceType string
-	var instanceOwner sql.NullString
-	var instanceRegion sql.NullString
-	var sbSeat, bbSeat, numPlayers, totalPot, winnerSeat int
-	var winType string
-
-	err := row.Scan(
-		&uid,
-		&startStr,
-		&endStr,
-		&isComplete,
-		&statsEligible,
-		&hasAnomaly,
-		&localSeat,
-		&worldID,
-		&worldDisplayName,
-		&instanceUID,
-		&instanceType,
-		&instanceOwner,
-		&instanceRegion,
-		&sbSeat,
-		&bbSeat,
-		&numPlayers,
-		&totalPot,
-		&winnerSeat,
-		&winType,
-	)
+	h, err := scanHandRow(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
-	}
-
-	startTime, _ := time.Parse(time.RFC3339Nano, startStr)
-	endTime, _ := time.Parse(time.RFC3339Nano, endStr)
-
-	h := &parser.Hand{
-		HandUID:          uid,
-		StartTime:        startTime,
-		EndTime:          endTime,
-		IsComplete:       isComplete == 1,
-		StatsEligible:    statsEligible == 1,
-		HasAnomaly:       hasAnomaly == 1,
-		LocalPlayerSeat:  localSeat,
-		WorldID:          worldID.String,
-		WorldDisplayName: worldDisplayName,
-		InstanceUID:      instanceUID.String,
-		InstanceType:     parser.InstanceType(instanceType),
-		InstanceOwner:    instanceOwner.String,
-		InstanceRegion:   instanceRegion.String,
-		SBSeat:           sbSeat,
-		BBSeat:           bbSeat,
-		NumPlayers:       numPlayers,
-		TotalPot:         totalPot,
-		WinnerSeat:       winnerSeat,
-		WinType:          winType,
-		Players:          make(map[int]*parser.PlayerHandInfo),
 	}
 
 	byUID := map[string]*parser.Hand{uid: h}
@@ -830,54 +715,11 @@ func (r *SQLiteRepository) ListHandsAfter(ctx context.Context, after time.Time, 
 	byUID := make(map[string]*parser.Hand)
 
 	for rows.Next() {
-		var uid string
-		var startStr, endStr string
-		var isComplete, statsEligible, hasAnomaly int
-		var localSeatDB int
-		var worldID sql.NullString
-		var worldDisplayName string
-		var instanceUID sql.NullString
-		var instanceType string
-		var instanceOwner sql.NullString
-		var instanceRegion sql.NullString
-		var sbSeat, bbSeat, numPlayers, totalPot, winnerSeat int
-		var winType string
-
-		if err := rows.Scan(
-			&uid, &startStr, &endStr,
-			&isComplete, &statsEligible, &hasAnomaly,
-			&localSeatDB,
-			&worldID, &worldDisplayName, &instanceUID, &instanceType, &instanceOwner, &instanceRegion,
-			&sbSeat, &bbSeat, &numPlayers, &totalPot, &winnerSeat, &winType,
-		); err != nil {
+		h, err := scanHandRow(rows)
+		if err != nil {
 			return nil, err
 		}
-
-		startTime, _ := time.Parse(time.RFC3339Nano, startStr)
-		endTime, _ := time.Parse(time.RFC3339Nano, endStr)
-
-		h := &parser.Hand{
-			HandUID:          uid,
-			StartTime:        startTime,
-			EndTime:          endTime,
-			IsComplete:       isComplete == 1,
-			StatsEligible:    statsEligible == 1,
-			HasAnomaly:       hasAnomaly == 1,
-			LocalPlayerSeat:  localSeatDB,
-			WorldID:          worldID.String,
-			WorldDisplayName: worldDisplayName,
-			InstanceUID:      instanceUID.String,
-			InstanceType:     parser.InstanceType(instanceType),
-			InstanceOwner:    instanceOwner.String,
-			InstanceRegion:   instanceRegion.String,
-			SBSeat:           sbSeat,
-			BBSeat:           bbSeat,
-			NumPlayers:       numPlayers,
-			TotalPot:         totalPot,
-			WinnerSeat:       winnerSeat,
-			WinType:          winType,
-			Players:          make(map[int]*parser.PlayerHandInfo),
-		}
+		uid := h.HandUID
 		uids = append(uids, uid)
 		byUID[uid] = h
 	}
@@ -925,6 +767,79 @@ func (r *SQLiteRepository) CountHands(ctx context.Context, f HandFilter) (int, e
 		return 0, err
 	}
 	return count, nil
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanHandRow(scanner rowScanner) (*parser.Hand, error) {
+	if scanner == nil {
+		return nil, fmt.Errorf("nil row scanner")
+	}
+	var uid string
+	var startStr, endStr string
+	var isComplete, statsEligible, hasAnomaly int
+	var localSeat int
+	var worldID sql.NullString
+	var worldDisplayName string
+	var instanceUID sql.NullString
+	var instanceType string
+	var instanceOwner sql.NullString
+	var instanceRegion sql.NullString
+	var sbSeat, bbSeat, numPlayers, totalPot, winnerSeat int
+	var winType string
+
+	if err := scanner.Scan(
+		&uid,
+		&startStr,
+		&endStr,
+		&isComplete,
+		&statsEligible,
+		&hasAnomaly,
+		&localSeat,
+		&worldID,
+		&worldDisplayName,
+		&instanceUID,
+		&instanceType,
+		&instanceOwner,
+		&instanceRegion,
+		&sbSeat,
+		&bbSeat,
+		&numPlayers,
+		&totalPot,
+		&winnerSeat,
+		&winType,
+	); err != nil {
+		return nil, err
+	}
+
+	startTime, _ := time.Parse(time.RFC3339Nano, startStr)
+	endTime, _ := time.Parse(time.RFC3339Nano, endStr)
+
+	h := &parser.Hand{
+		HandUID:          uid,
+		StartTime:        startTime,
+		EndTime:          endTime,
+		IsComplete:       isComplete == 1,
+		StatsEligible:    statsEligible == 1,
+		HasAnomaly:       hasAnomaly == 1,
+		LocalPlayerSeat:  localSeat,
+		WorldID:          worldID.String,
+		WorldDisplayName: worldDisplayName,
+		InstanceUID:      instanceUID.String,
+		InstanceType:     parser.InstanceType(instanceType),
+		InstanceOwner:    instanceOwner.String,
+		InstanceRegion:   instanceRegion.String,
+		SBSeat:           sbSeat,
+		BBSeat:           bbSeat,
+		NumPlayers:       numPlayers,
+		TotalPot:         totalPot,
+		WinnerSeat:       winnerSeat,
+		WinType:          winType,
+		Players:          make(map[int]*parser.PlayerHandInfo),
+	}
+	return h, nil
 }
 
 func (r *SQLiteRepository) GetCursor(ctx context.Context, sourcePath string) (*ImportCursor, error) {
@@ -1244,13 +1159,35 @@ func finalClassCode(cls string) string {
 }
 
 func clearHandChildrenTx(ctx context.Context, tx *sql.Tx, handUID string) error {
-	tables := []string{"hand_actions", "hand_hole_cards", "hand_players", "hand_board_cards", "hand_anomalies"}
-	for _, table := range tables {
-		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE hand_uid = ?`, table), handUID); err != nil {
-			return err
-		}
+	if err := execDeleteHandUID(ctx, tx, "hand_actions", handUID); err != nil {
+		return err
+	}
+	if err := execDeleteHandUID(ctx, tx, "hand_hole_cards", handUID); err != nil {
+		return err
+	}
+	if err := execDeleteHandUID(ctx, tx, "hand_players", handUID); err != nil {
+		return err
+	}
+	if err := execDeleteHandUID(ctx, tx, "hand_board_cards", handUID); err != nil {
+		return err
+	}
+	if err := execDeleteHandUID(ctx, tx, "hand_anomalies", handUID); err != nil {
+		return err
 	}
 	return nil
+}
+
+func execDeleteHandUID(ctx context.Context, tx *sql.Tx, table string, handUID string) error {
+	if tx == nil {
+		return fmt.Errorf("nil transaction")
+	}
+	switch table {
+	case "hand_actions", "hand_hole_cards", "hand_players", "hand_board_cards", "hand_anomalies":
+		_, err := tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE hand_uid = ?`, handUID)
+		return err
+	default:
+		return fmt.Errorf("invalid table name: %s", table)
+	}
 }
 
 func buildHandsFilterWhere(f HandFilter) (string, []any) {

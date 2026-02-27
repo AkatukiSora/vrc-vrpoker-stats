@@ -1,6 +1,10 @@
 package stats
 
-import "github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
+import (
+	"sort"
+
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
+)
 
 type seqAction struct {
 	seat int
@@ -26,11 +30,12 @@ func preflopActionSequence(h *parser.Hand) []seqAction {
 			out = append(out, seqAction{seat: seat, act: a})
 		}
 	}
-	for i := 1; i < len(out); i++ {
-		for j := i; j > 0 && (out[j].act.Timestamp.Before(out[j-1].act.Timestamp) || (out[j].act.Timestamp.Equal(out[j-1].act.Timestamp) && out[j].seat < out[j-1].seat)); j-- {
-			out[j], out[j-1] = out[j-1], out[j]
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].act.Timestamp.Equal(out[j].act.Timestamp) {
+			return out[i].seat < out[j].seat
 		}
-	}
+		return out[i].act.Timestamp.Before(out[j].act.Timestamp)
+	})
 	return out
 }
 

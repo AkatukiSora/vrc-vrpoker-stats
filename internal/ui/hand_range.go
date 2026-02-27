@@ -91,7 +91,7 @@ func rankDisplayName(r string) string {
 	return r
 }
 
-func comboDisplayName(cell *stats.HandRangeCell) string {
+func comboDisplayLabel(cell *stats.HandRangeCell) string {
 	r1 := rankDisplayName(cell.Rank1)
 	r2 := rankDisplayName(cell.Rank2)
 	if cell.IsPair {
@@ -107,16 +107,8 @@ func findCellByCombo(table *stats.HandRangeTable, combo string) *stats.HandRange
 	if table == nil || combo == "" {
 		return nil
 	}
-	for r := 0; r < 13; r++ {
-		for c := 0; c < 13; c++ {
-			cell := table.Cells[r][c]
-			if cell == nil {
-				continue
-			}
-			if comboDisplayName(cell) == combo {
-				return cell
-			}
-		}
+	if table.ComboIndex != nil {
+		return table.ComboIndex[combo]
 	}
 	return nil
 }
@@ -202,19 +194,22 @@ type rangeCellWidget struct {
 	isSelected bool
 	isDimmed   bool
 
-	onSelect func()
+	onSelect     func()
+	selectCell   *stats.HandRangeCell
+	onSelectCell func(*stats.HandRangeCell)
 }
 
 func newRangeCellWidget(cell *stats.HandRangeCell, posIdx int, selectedCombo string, onSelect func(*stats.HandRangeCell)) *rangeCellWidget {
 	w := &rangeCellWidget{}
+	w.onSelectCell = onSelect
 	w.counts, w.dealt = actionCountsForCell(cell, posIdx)
 	w.label = "---"
 	if cell != nil {
-		w.comboKey = comboDisplayName(cell)
-		w.label = w.comboKey
+		w.comboKey = cell.ComboKey()
+		w.label = comboDisplayLabel(cell)
+		w.selectCell = cell
 		if onSelect != nil {
-			selectedCell := cell
-			w.onSelect = func() { onSelect(selectedCell) }
+			w.onSelect = func() { w.onSelectCell(w.selectCell) }
 		}
 	}
 	if selectedCombo != "" {
@@ -274,7 +269,6 @@ func (w *rangeCellWidget) CreateRenderer() fyne.WidgetRenderer {
 	outlineObjects = append(outlineObjects, r.label)
 	r.labelLayer = container.NewWithoutLayout(outlineObjects...)
 
-	r.barStops, r.barColors = buildRangeCellStops(w.counts, w.dealt)
 	r.barRaster = canvas.NewRasterWithPixels(func(x, _y, w, h int) color.Color {
 		if w <= 0 || h <= 0 || len(r.barStops) == 0 || len(r.barStops) != len(r.barColors) {
 			return color.Transparent
@@ -295,6 +289,30 @@ func (w *rangeCellWidget) CreateRenderer() fyne.WidgetRenderer {
 	r.objects = append(r.objects, r.barRaster)
 	r.objects = append(r.objects, r.mask, r.border, r.labelLayer)
 	return r
+}
+
+func (w *rangeCellWidget) applyCellState(cell *stats.HandRangeCell, posIdx int, selectedCombo string) {
+	w.counts, w.dealt = actionCountsForCell(cell, posIdx)
+	w.comboKey = ""
+	w.label = "---"
+	w.selectCell = nil
+	if cell != nil {
+		w.comboKey = cell.ComboKey()
+		w.label = comboDisplayLabel(cell)
+		w.selectCell = cell
+	}
+	if w.onSelectCell != nil {
+		w.onSelect = func() { w.onSelectCell(w.selectCell) }
+	} else {
+		w.onSelect = nil
+	}
+	w.isSelected = false
+	w.isDimmed = false
+	if selectedCombo != "" {
+		w.isSelected = w.comboKey != "" && w.comboKey == selectedCombo
+		w.isDimmed = w.comboKey != "" && w.comboKey != selectedCombo
+	}
+	w.Refresh()
 }
 
 func buildRangeCellStops(counts [stats.RangeActionBucketCount]int, dealt int) ([]float32, []color.NRGBA) {
@@ -382,6 +400,19 @@ func (r *rangeCellRenderer) Refresh() {
 	r.barStops, r.barColors = buildRangeCellStops(r.owner.counts, r.owner.dealt)
 	r.barRaster.Refresh()
 
+	if r.owner.isSelected {
+		r.border.StrokeColor = color.NRGBA{R: 0xF5, G: 0xF5, B: 0xF5, A: 0xFF}
+		r.border.StrokeWidth = 2
+	} else {
+		r.border.StrokeColor = color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF}
+		r.border.StrokeWidth = 1
+	}
+	if r.owner.isDimmed {
+		r.mask.FillColor = color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xB5}
+	} else {
+		r.mask.FillColor = color.Transparent
+	}
+
 	r.label.Text = r.owner.label
 	r.label.Refresh()
 	for _, o := range r.labelOutline {
@@ -399,45 +430,6 @@ func (r *rangeCellRenderer) Objects() []fyne.CanvasObject {
 }
 
 func (r *rangeCellRenderer) Destroy() {}
-
-func buildRangeGrid(s *stats.Stats, posIdx int, selectedCombo string, onSelect func(*stats.HandRangeCell)) fyne.CanvasObject {
-	rankLabels := stats.RankOrder
-	items := make([]fyne.CanvasObject, 0, 14*14)
-
-	corner := canvas.NewRectangle(color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF})
-	corner.SetMinSize(fyne.NewSize(rangeHeaderW, rangeHeaderH))
-	items = append(items, corner)
-
-	for col := 0; col < 13; col++ {
-		bg := canvas.NewRectangle(color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF})
-		bg.SetMinSize(fyne.NewSize(rangeCellW, rangeHeaderH))
-		tx := canvas.NewText(rankDisplayName(rankLabels[col]), color.White)
-		tx.TextStyle = fyne.TextStyle{Bold: true}
-		tx.TextSize = 11
-		tx.Alignment = fyne.TextAlignCenter
-		items = append(items, container.NewStack(bg, container.NewCenter(tx)))
-	}
-
-	for row := 0; row < 13; row++ {
-		bg := canvas.NewRectangle(color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF})
-		bg.SetMinSize(fyne.NewSize(rangeHeaderW, rangeCellH))
-		tx := canvas.NewText(rankDisplayName(rankLabels[row]), color.White)
-		tx.TextStyle = fyne.TextStyle{Bold: true}
-		tx.TextSize = 11
-		tx.Alignment = fyne.TextAlignCenter
-		items = append(items, container.NewStack(bg, container.NewCenter(tx)))
-
-		for col := 0; col < 13; col++ {
-			var cell *stats.HandRangeCell
-			if s != nil && s.HandRange != nil {
-				cell = s.HandRange.Cells[row][col]
-			}
-			items = append(items, newRangeCellWidget(cell, posIdx, selectedCombo, onSelect))
-		}
-	}
-
-	return container.NewGridWithColumns(14, items...)
-}
 
 func buildActionFrequencyCards(counts [stats.RangeActionBucketCount]int, total int) fyne.CanvasObject {
 	cards := make([]fyne.CanvasObject, 0, len(actionVisuals))
@@ -482,7 +474,7 @@ func buildRightPanel(table *stats.HandRangeTable, posIdx int, selected *stats.Ha
 	frequencyBody := fyne.CanvasObject(buildActionFrequencyCards(allCounts, allTotal))
 
 	if selected != nil {
-		frequencyTitle = widget.NewLabelWithStyle(lang.X("hand_range.combo_action_title_named", "{{.Combo}} Action Frequency", map[string]any{"Combo": comboDisplayName(selected)}), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		frequencyTitle = widget.NewLabelWithStyle(lang.X("hand_range.combo_action_title_named", "{{.Combo}} Action Frequency", map[string]any{"Combo": comboDisplayLabel(selected)}), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 		counts, total := actionCountsForCell(selected, posIdx)
 		if total == 0 {
 			noData := widget.NewLabel(lang.X("hand_range.no_combo_records", "No records for this combo in the selected position filter."))
@@ -520,6 +512,7 @@ type handRangeView struct {
 	state         *HandRangeViewState
 	currentPosIdx int
 	selected      *stats.HandRangeCell
+	gridCells     [13][13]*rangeCellWidget
 
 	leftWrap  *fyne.Container
 	rightWrap *fyne.Container
@@ -527,11 +520,6 @@ type handRangeView struct {
 }
 
 func (v *handRangeView) rebuild() {
-	selectedCombo := ""
-	if v.selected != nil {
-		selectedCombo = comboDisplayName(v.selected)
-	}
-
 	filterBar := withMinHeight(buildPositionFilterBar(v.currentPosIdx, func(nextPos int) {
 		v.currentPosIdx = nextPos
 		v.state.PositionKey = positionFilters[nextPos].Key
@@ -559,16 +547,93 @@ func (v *handRangeView) rebuild() {
 	v.topWrap.Objects = []fyne.CanvasObject{newSectionCard(positionRow)}
 	v.topWrap.Refresh()
 
-	v.rebuildGrid(selectedCombo)
+	v.rebuildGrid()
 	v.rebuildRightPanel()
 }
 
-func (v *handRangeView) rebuildGrid(selectedCombo string) {
-	grid := buildRangeGrid(v.s, v.currentPosIdx, selectedCombo, func(cell *stats.HandRangeCell) {
-		v.selected = cell
-		v.state.SelectedCombo = comboDisplayName(cell)
-		v.rebuild()
-	})
+func (v *handRangeView) rebuildGrid() {
+	if v.leftWrap.Objects == nil || len(v.leftWrap.Objects) == 0 {
+		v.leftWrap.Objects = []fyne.CanvasObject{container.NewScroll(v.buildGridOnce())}
+	}
+	selectedCombo := ""
+	if v.selected != nil {
+		selectedCombo = v.selected.ComboKey()
+	}
+	for row := 0; row < 13; row++ {
+		for col := 0; col < 13; col++ {
+			cellWidget := v.gridCells[row][col]
+			if cellWidget == nil {
+				continue
+			}
+			var cell *stats.HandRangeCell
+			if v.s != nil && v.s.HandRange != nil {
+				cell = v.s.HandRange.Cells[row][col]
+			}
+			cellWidget.applyCellState(cell, v.currentPosIdx, selectedCombo)
+		}
+	}
+	v.leftWrap.Refresh()
+}
+
+func (v *handRangeView) rebuildRightPanel() {
+	rightMin := canvas.NewRectangle(color.Transparent)
+	rightMin.SetMinSize(fyne.NewSize(360, 0))
+	if v.s == nil {
+		return
+	}
+	rightContent := container.NewPadded(buildRightPanel(v.s.HandRange, v.currentPosIdx, v.selected))
+	v.rightWrap.Objects = []fyne.CanvasObject{container.NewStack(rightMin, rightContent)}
+	v.rightWrap.Refresh()
+}
+
+func (v *handRangeView) buildGridOnce() fyne.CanvasObject {
+	rankLabels := stats.RankOrder
+	items := make([]fyne.CanvasObject, 0, 14*14)
+
+	corner := canvas.NewRectangle(color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF})
+	corner.SetMinSize(fyne.NewSize(rangeHeaderW, rangeHeaderH))
+	items = append(items, corner)
+
+	for col := 0; col < 13; col++ {
+		bg := canvas.NewRectangle(color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF})
+		bg.SetMinSize(fyne.NewSize(rangeCellW, rangeHeaderH))
+		tx := canvas.NewText(rankDisplayName(rankLabels[col]), color.White)
+		tx.TextStyle = fyne.TextStyle{Bold: true}
+		tx.TextSize = 11
+		tx.Alignment = fyne.TextAlignCenter
+		items = append(items, container.NewStack(bg, container.NewCenter(tx)))
+	}
+
+	for row := 0; row < 13; row++ {
+		bg := canvas.NewRectangle(color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF})
+		bg.SetMinSize(fyne.NewSize(rangeHeaderW, rangeCellH))
+		tx := canvas.NewText(rankDisplayName(rankLabels[row]), color.White)
+		tx.TextStyle = fyne.TextStyle{Bold: true}
+		tx.TextSize = 11
+		tx.Alignment = fyne.TextAlignCenter
+		items = append(items, container.NewStack(bg, container.NewCenter(tx)))
+
+		for col := 0; col < 13; col++ {
+			var cell *stats.HandRangeCell
+			if v.s != nil && v.s.HandRange != nil {
+				cell = v.s.HandRange.Cells[row][col]
+			}
+			cellWidget := newRangeCellWidget(cell, v.currentPosIdx, "", func(selected *stats.HandRangeCell) {
+				v.selected = selected
+				if selected != nil {
+					v.state.SelectedCombo = selected.ComboKey()
+				} else {
+					v.state.SelectedCombo = ""
+				}
+				v.rebuild()
+			})
+			cellWidget.selectCell = cell
+			v.gridCells[row][col] = cellWidget
+			items = append(items, cellWidget)
+		}
+	}
+
+	grid := container.NewGridWithColumns(14, items...)
 	gridSize := grid.MinSize()
 	gridFixed := container.NewWithoutLayout()
 	gridLock := canvas.NewRectangle(color.Transparent)
@@ -578,17 +643,7 @@ func (v *handRangeView) rebuildGrid(selectedCombo string) {
 	grid.Move(fyne.NewPos(0, 0))
 	grid.Resize(gridSize)
 	gridFixed.Add(grid)
-
-	v.leftWrap.Objects = []fyne.CanvasObject{container.NewScroll(gridFixed)}
-	v.leftWrap.Refresh()
-}
-
-func (v *handRangeView) rebuildRightPanel() {
-	rightMin := canvas.NewRectangle(color.Transparent)
-	rightMin.SetMinSize(fyne.NewSize(360, 0))
-	rightContent := container.NewPadded(buildRightPanel(v.s.HandRange, v.currentPosIdx, v.selected))
-	v.rightWrap.Objects = []fyne.CanvasObject{container.NewStack(rightMin, rightContent)}
-	v.rightWrap.Refresh()
+	return gridFixed
 }
 
 // NewHandRangeTab renders a GTO-style mixed-strategy range view.

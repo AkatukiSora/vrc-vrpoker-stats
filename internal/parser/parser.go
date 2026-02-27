@@ -462,12 +462,13 @@ func (p *Parser) ensurePlayer(seat int) {
 	}
 	if _, ok := p.currentHand.Players[seat]; !ok {
 		p.currentHand.Players[seat] = &PlayerHandInfo{SeatID: seat}
-		for _, s := range p.currentHand.ActiveSeats {
-			if s == seat {
-				return
-			}
+		if p.currentHand.ActiveSeatSet == nil {
+			p.currentHand.ActiveSeatSet = make(map[int]struct{})
 		}
-		p.currentHand.ActiveSeats = append(p.currentHand.ActiveSeats, seat)
+		if _, ok := p.currentHand.ActiveSeatSet[seat]; !ok {
+			p.currentHand.ActiveSeats = append(p.currentHand.ActiveSeats, seat)
+			p.currentHand.ActiveSeatSet[seat] = struct{}{}
+		}
 	}
 }
 
@@ -484,6 +485,7 @@ func (p *Parser) startNewHand(ts time.Time) {
 		InstanceOwner:    p.currentInstanceOwner,
 		InstanceRegion:   p.currentInstanceRegion,
 		Players:          make(map[int]*PlayerHandInfo),
+		ActiveSeatSet:    make(map[int]struct{}),
 		SBSeat:           -1,
 		BBSeat:           -1,
 		WinnerSeat:       -1,
@@ -540,6 +542,9 @@ func (p *Parser) finalizeCurrentHand() {
 	}
 
 	h.NumPlayers = len(h.ActiveSeats)
+	if h.ActiveSeatSet != nil {
+		h.ActiveSeatSet = nil
+	}
 	if h.SBSeat < 0 || h.BBSeat < 0 {
 		p.inferBlindsFromPreflop(h)
 	}

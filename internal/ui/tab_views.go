@@ -150,6 +150,18 @@ type overviewTabView struct {
 	localSeat  int
 }
 
+func applyFilterLayout(root *fyne.Container, filter *TabFilterState, rebuild func(), buildContent func() fyne.CanvasObject) {
+	if root == nil || filter == nil || rebuild == nil || buildContent == nil {
+		return
+	}
+	// trendN=-1 since filtering is now done at the service layer
+	filterBar := buildFilterBar(filter, -1, func() {
+		rebuild()
+	})
+	inner := container.NewBorder(filterBar, nil, nil, nil, buildContent())
+	replaceViewContentPreservingLayout(root, inner)
+}
+
 func newOverviewTabView(win fyne.Window, visibility *MetricVisibilityState) *overviewTabView {
 	return &overviewTabView{
 		tabRoot:    newTabRoot(),
@@ -173,13 +185,9 @@ func (v *overviewTabView) rebuild() {
 		replaceViewContentPreservingLayout(v.root, container.NewCenter(loadingLabel))
 		return
 	}
-	// trendN=-1 since filtering is now done at the service layer
-	filterBar := buildFilterBar(&v.filter, -1, func() {
-		v.rebuild()
+	applyFilterLayout(v.root, &v.filter, v.rebuild, func() fyne.CanvasObject {
+		return NewOverviewTab(s, v.visibility, v.win)
 	})
-	content := NewOverviewTab(s, v.visibility, v.win)
-	inner := container.NewBorder(filterBar, nil, nil, nil, content)
-	replaceViewContentPreservingLayout(v.root, inner)
 }
 
 type positionStatsTabView struct {
@@ -212,13 +220,9 @@ func (v *positionStatsTabView) rebuild() {
 		replaceViewContentPreservingLayout(v.root, container.NewCenter(loadingLabel))
 		return
 	}
-	// trendN=-1 since filtering is now done at the service layer
-	filterBar := buildFilterBar(&v.filter, -1, func() {
-		v.rebuild()
+	applyFilterLayout(v.root, &v.filter, v.rebuild, func() fyne.CanvasObject {
+		return NewPositionStatsTab(s, v.visibility)
 	})
-	content := NewPositionStatsTab(s, v.visibility)
-	inner := container.NewBorder(filterBar, nil, nil, nil, content)
-	replaceViewContentPreservingLayout(v.root, inner)
 }
 
 type handRangeTabView struct {
@@ -253,13 +257,9 @@ func (v *handRangeTabView) rebuild() {
 		replaceViewContentPreservingLayout(v.root, container.NewCenter(loadingLabel))
 		return
 	}
-	// trendN=-1 since filtering is now done at the service layer
-	filterBar := buildFilterBar(&v.filter, -1, func() {
-		v.rebuild()
+	applyFilterLayout(v.root, &v.filter, v.rebuild, func() fyne.CanvasObject {
+		return NewHandRangeTab(s, v.win, v.state)
 	})
-	content := NewHandRangeTab(s, v.win, v.state)
-	inner := container.NewBorder(filterBar, nil, nil, nil, content)
-	replaceViewContentPreservingLayout(v.root, inner)
 }
 
 type handHistoryTabView struct {

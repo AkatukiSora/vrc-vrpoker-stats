@@ -303,12 +303,17 @@ func newHandRangeTable() *HandRangeTable {
 			suited := !isPair && i < j
 			rank1 := RankOrder[min13(i, j)]
 			rank2 := RankOrder[max13(i, j)]
-			t.Cells[i][j] = &HandRangeCell{
+			cell := &HandRangeCell{
 				Rank1:  rank1,
 				Rank2:  rank2,
 				Suited: suited,
 				IsPair: isPair,
 			}
+			t.Cells[i][j] = cell
+			if t.ComboIndex == nil {
+				t.ComboIndex = make(map[string]*HandRangeCell, 169)
+			}
+			t.ComboIndex[cell.ComboKey()] = cell
 		}
 	}
 	t.ByHandClass = make(map[string]*HandClassStats)

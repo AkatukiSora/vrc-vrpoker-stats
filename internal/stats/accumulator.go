@@ -147,8 +147,8 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 		}
 	}
 
-	flopAgg := hasAggressionOnStreet(pi, parser.StreetFlop)
-	turnAgg := hasAggressionOnStreet(pi, parser.StreetTurn)
+	flopAgg := hasActionOnStreet(pi, parser.StreetFlop, isAggressiveAction)
+	turnAgg := hasActionOnStreet(pi, parser.StreetTurn, isAggressiveAction)
 
 	if pi.PFR && len(h.CommunityCards) >= 3 {
 		m.incOpp(MetricFlopCBet)
@@ -171,15 +171,15 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 		}
 	}
 
-	if !pi.PFR && len(h.CommunityCards) >= 3 && hasOpponentAggressionOnStreet(h, pi.SeatID, parser.StreetFlop) && actedOnStreet(pi, parser.StreetFlop) {
+	if !pi.PFR && len(h.CommunityCards) >= 3 && hasOpponentAggressionOnStreet(h, pi.SeatID, parser.StreetFlop) && hasActionOnStreet(pi, parser.StreetFlop, anyAction) {
 		m.incOpp(MetricFoldToFlopCBet)
-		if hasFoldOnStreet(pi, parser.StreetFlop) {
+		if hasActionOnStreet(pi, parser.StreetFlop, isFoldAction) {
 			m.incCount(MetricFoldToFlopCBet)
 		}
 	}
-	if !pi.PFR && len(h.CommunityCards) >= 4 && hasOpponentAggressionOnStreet(h, pi.SeatID, parser.StreetTurn) && actedOnStreet(pi, parser.StreetTurn) {
+	if !pi.PFR && len(h.CommunityCards) >= 4 && hasOpponentAggressionOnStreet(h, pi.SeatID, parser.StreetTurn) && hasActionOnStreet(pi, parser.StreetTurn, anyAction) {
 		m.incOpp(MetricFoldToTurnCBet)
-		if hasFoldOnStreet(pi, parser.StreetTurn) {
+		if hasActionOnStreet(pi, parser.StreetTurn, isFoldAction) {
 			m.incCount(MetricFoldToTurnCBet)
 		}
 	}
@@ -187,6 +187,35 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 	m.aggPostflop += agg
 	m.callPostflop += call
 	m.foldPostflop += fold
+}
+
+type actionPredicate func(parser.PlayerAction) bool
+
+func hasActionOnStreet(pi *parser.PlayerHandInfo, street parser.Street, pred actionPredicate) bool {
+	if pi == nil || pred == nil {
+		return false
+	}
+	for _, act := range pi.Actions {
+		if act.Street != street {
+			continue
+		}
+		if pred(act) {
+			return true
+		}
+	}
+	return false
+}
+
+func anyAction(act parser.PlayerAction) bool {
+	return act.Action != parser.ActionUnknown
+}
+
+func isFoldAction(act parser.PlayerAction) bool {
+	return act.Action == parser.ActionFold
+}
+
+func isAggressiveAction(act parser.PlayerAction) bool {
+	return act.Action == parser.ActionBet || act.Action == parser.ActionRaise || act.Action == parser.ActionAllIn
 }
 
 // clone returns a shallow copy of the accumulator suitable for finalize().
@@ -292,54 +321,21 @@ func sawFlop(pi *parser.PlayerHandInfo, h *parser.Hand) bool {
 }
 
 func hasAggressionOnStreet(pi *parser.PlayerHandInfo, street parser.Street) bool {
-	if pi == nil {
-		return false
-	}
-	for _, a := range pi.Actions {
-		if a.Street != street {
-			continue
-		}
-		if a.Action == parser.ActionBet || a.Action == parser.ActionRaise || a.Action == parser.ActionAllIn {
-			return true
-		}
-	}
-	return false
+	return hasActionOnStreet(pi, street, isAggressiveAction)
 }
 
 func hasCallOnStreet(pi *parser.PlayerHandInfo, street parser.Street) bool {
-	if pi == nil {
-		return false
-	}
-	for _, a := range pi.Actions {
-		if a.Street == street && a.Action == parser.ActionCall {
-			return true
-		}
-	}
-	return false
+	return hasActionOnStreet(pi, street, func(act parser.PlayerAction) bool {
+		return act.Action == parser.ActionCall
+	})
 }
 
 func hasFoldOnStreet(pi *parser.PlayerHandInfo, street parser.Street) bool {
-	if pi == nil {
-		return false
-	}
-	for _, a := range pi.Actions {
-		if a.Street == street && a.Action == parser.ActionFold {
-			return true
-		}
-	}
-	return false
+	return hasActionOnStreet(pi, street, isFoldAction)
 }
 
 func actedOnStreet(pi *parser.PlayerHandInfo, street parser.Street) bool {
-	if pi == nil {
-		return false
-	}
-	for _, a := range pi.Actions {
-		if a.Street == street {
-			return true
-		}
-	}
-	return false
+	return hasActionOnStreet(pi, street, anyAction)
 }
 
 func hasOpponentAggressionOnStreet(h *parser.Hand, localSeat int, street parser.Street) bool {

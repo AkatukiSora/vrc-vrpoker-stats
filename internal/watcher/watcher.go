@@ -17,28 +17,41 @@ import (
 
 // LogWatcher monitors VRChat log files for new content
 type LogWatcher struct {
-	LogPath      string
-	offset       int64
-	watcher      *fsnotify.Watcher
+	LogPath  string
+	offset   int64
+	watcher  *fsnotify.Watcher
+	done     chan struct{}
+	mu       sync.Mutex
+	readMu   sync.Mutex
+	stopOnce sync.Once
+
+	cleanLogPath string
+	onNewData    func(lines []string, startOffset int64, endOffset int64)
+	onNewLogFile func(path string)
+	onError      func(err error)
+}
+
+type WatcherConfig struct {
 	OnNewData    func(lines []string, startOffset int64, endOffset int64)
 	OnNewLogFile func(path string)
 	OnError      func(err error)
-	done         chan struct{}
-	mu           sync.Mutex
-	stopOnce     sync.Once
 }
 
 // NewLogWatcher creates a watcher for the given log file path
-func NewLogWatcher(logPath string) (*LogWatcher, error) {
+func NewLogWatcher(logPath string, cfg WatcherConfig) (*LogWatcher, error) {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("create fsnotify watcher: %w", err)
 	}
 
 	return &LogWatcher{
-		LogPath: logPath,
-		watcher: w,
-		done:    make(chan struct{}),
+		LogPath:      logPath,
+		watcher:      w,
+		done:         make(chan struct{}),
+		cleanLogPath: filepath.Clean(logPath),
+		onNewData:    cfg.OnNewData,
+		onNewLogFile: cfg.OnNewLogFile,
+		onError:      cfg.OnError,
 	}, nil
 }
 
@@ -92,14 +105,14 @@ func (lw *LogWatcher) watchLoop() {
 				return
 			}
 			if event.Has(fsnotify.Create) && isVRChatLogFile(event.Name) {
-				if filepath.Clean(event.Name) != filepath.Clean(lw.LogPath) && lw.OnNewLogFile != nil {
-					lw.OnNewLogFile(event.Name)
+				if filepath.Clean(event.Name) != lw.cleanLogPath && lw.onNewLogFile != nil {
+					lw.onNewLogFile(event.Name)
 				}
 			}
 			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
-				if filepath.Clean(event.Name) == filepath.Clean(lw.LogPath) {
-					if err := lw.readNewContent(); err != nil && lw.OnError != nil {
-						lw.OnError(err)
+				if filepath.Clean(event.Name) == lw.cleanLogPath {
+					if err := lw.readNewContent(); err != nil && lw.onError != nil {
+						lw.onError(err)
 					}
 				}
 			}
@@ -107,19 +120,22 @@ func (lw *LogWatcher) watchLoop() {
 			if !ok {
 				return
 			}
-			if lw.OnError != nil {
-				lw.OnError(err)
+			if lw.onError != nil {
+				lw.onError(err)
 			}
 		case <-ticker.C:
 			// Periodic poll as fallback
-			if err := lw.readNewContent(); err != nil && lw.OnError != nil {
-				lw.OnError(err)
+			if err := lw.readNewContent(); err != nil && lw.onError != nil {
+				lw.onError(err)
 			}
 		}
 	}
 }
 
 func (lw *LogWatcher) readNewContent() error {
+	lw.readMu.Lock()
+	defer lw.readMu.Unlock()
+
 	f, err := os.Open(lw.LogPath)
 	if err != nil {
 		return err
@@ -133,27 +149,24 @@ func (lw *LogWatcher) readNewContent() error {
 	}
 
 	lw.mu.Lock()
+	defer lw.mu.Unlock()
 	if info.Size() < lw.offset {
 		lw.offset = 0
 	}
 	if info.Size() <= lw.offset {
-		lw.mu.Unlock()
 		return nil // No new content
 	}
 	startOffset := lw.offset
-	lw.mu.Unlock()
 
 	if _, err := f.Seek(startOffset, 0 /* io.SeekStart */); err != nil {
 		return err
 	}
 
 	endOffset := info.Size()
-	lw.mu.Lock()
 	lw.offset = endOffset
-	lw.mu.Unlock()
 
 	// Stream lines without loading the entire new content into memory at once.
-	var lines []string
+	lines := make([]string, 0, 512)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
@@ -162,9 +175,9 @@ func (lw *LogWatcher) readNewContent() error {
 		return err
 	}
 
-	if len(lines) > 0 && lw.OnNewData != nil {
+	if len(lines) > 0 && lw.onNewData != nil {
 		slog.Debug("new data detected", "path", lw.LogPath, "lines", len(lines))
-		lw.OnNewData(lines, startOffset, endOffset)
+		lw.onNewData(lines, startOffset, endOffset)
 	}
 
 	return nil
@@ -228,6 +241,10 @@ func sortByModTimeDesc(paths []string) {
 
 // logDirectories returns OS-specific VRChat log directories
 func logDirectories() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
 	switch runtime.GOOS {
 	case "windows":
 		return []string{
@@ -235,7 +252,6 @@ func logDirectories() []string {
 			filepath.Join(os.Getenv("USERPROFILE"), "AppData", "LocalLow", "VRChat", "VRChat"),
 		}
 	case "linux":
-		home := os.Getenv("HOME")
 		return []string{
 			// Steam Proton (most common for Linux VRChat)
 			filepath.Join(home, ".local", "share", "Steam", "steamapps", "compatdata", "438100", "pfx", "drive_c", "users", "steamuser", "AppData", "LocalLow", "VRChat", "VRChat"),
@@ -243,7 +259,6 @@ func logDirectories() []string {
 			filepath.Join(home, ".var", "app", "com.valvesoftware.Steam", "data", "Steam", "steamapps", "compatdata", "438100", "pfx", "drive_c", "users", "steamuser", "AppData", "LocalLow", "VRChat", "VRChat"),
 		}
 	case "darwin":
-		home := os.Getenv("HOME")
 		return []string{
 			filepath.Join(home, "Library", "Application Support", "com.vrchat.VRChat"),
 		}
@@ -254,7 +269,10 @@ func logDirectories() []string {
 
 func expandHome(path string) string {
 	if strings.HasPrefix(path, "~/") {
-		home := os.Getenv("HOME")
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = os.Getenv("HOME")
+		}
 		return filepath.Join(home, path[2:])
 	}
 	return path

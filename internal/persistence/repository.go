@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -133,7 +134,17 @@ func GenerateHandUID(h *parser.Hand, src HandSourceRef) string {
 	b.WriteString("|")
 	b.WriteString(h.InstanceUID)
 	b.WriteString("|")
-	b.WriteString(fmt.Sprintf("%d|%d|%d|%d|%d|%s", h.LocalPlayerSeat, h.SBSeat, h.BBSeat, h.WinnerSeat, h.TotalPot, h.WinType))
+	appendInt(&b, h.LocalPlayerSeat)
+	b.WriteByte('|')
+	appendInt(&b, h.SBSeat)
+	b.WriteByte('|')
+	appendInt(&b, h.BBSeat)
+	b.WriteByte('|')
+	appendInt(&b, h.WinnerSeat)
+	b.WriteByte('|')
+	appendInt(&b, h.TotalPot)
+	b.WriteByte('|')
+	b.WriteString(h.WinType)
 
 	b.WriteString("|B:")
 	for _, c := range h.CommunityCards {
@@ -153,14 +164,30 @@ func GenerateHandUID(h *parser.Hand, src HandSourceRef) string {
 		if pi == nil {
 			continue
 		}
-		b.WriteString(fmt.Sprintf("%d:%d:%t:%t:%d:", seat, pi.Position, pi.ShowedDown, pi.Won, pi.PotWon))
+		appendInt(&b, seat)
+		b.WriteByte(':')
+		appendInt(&b, int(pi.Position))
+		b.WriteByte(':')
+		b.WriteString(strconv.FormatBool(pi.ShowedDown))
+		b.WriteByte(':')
+		b.WriteString(strconv.FormatBool(pi.Won))
+		b.WriteByte(':')
+		appendInt(&b, pi.PotWon)
+		b.WriteByte(':')
 		for _, c := range pi.HoleCards {
 			b.WriteString(c.Rank)
 			b.WriteString(c.Suit)
 		}
 		b.WriteString(":")
 		for _, act := range pi.Actions {
-			b.WriteString(fmt.Sprintf("%s/%d/%d/%d/", act.Timestamp.UTC().Format(time.RFC3339Nano), act.Street, act.Action, act.Amount))
+			b.WriteString(act.Timestamp.UTC().Format(time.RFC3339Nano))
+			b.WriteByte('/')
+			appendInt(&b, int(act.Street))
+			b.WriteByte('/')
+			appendInt(&b, int(act.Action))
+			b.WriteByte('/')
+			appendInt(&b, act.Amount)
+			b.WriteByte('/')
 		}
 		b.WriteString(";")
 	}
@@ -168,4 +195,8 @@ func GenerateHandUID(h *parser.Hand, src HandSourceRef) string {
 	payload := b.String()
 	s := sha256.Sum256([]byte(payload))
 	return hex.EncodeToString(s[:])
+}
+
+func appendInt(b *strings.Builder, v int) {
+	b.WriteString(strconv.Itoa(v))
 }

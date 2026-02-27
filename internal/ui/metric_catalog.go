@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
+import (
+	"log/slog"
+
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
+)
 
 type metricCategoryID string
 
@@ -57,6 +61,27 @@ var metricCatalog = map[string]metricCatalogEntry{
 	string(stats.MetricAF):             {Category: metricCategoryPostflop, Threshold: metricThreshold{Min: 100, Good: 500}},
 	string(stats.MetricWonWithoutSD):   {Category: metricCategoryShowdown, Threshold: metricThreshold{Min: 10000, Good: 50000}},
 	string(stats.MetricBBPer100):       {Category: metricCategoryResult, Threshold: metricThreshold{Min: 10000, Good: 50000}},
+}
+
+func init() {
+	missing := make([]string, 0)
+	for _, def := range metricRegistry {
+		if def.ID == "" {
+			continue
+		}
+		if _, ok := metricCatalog[def.ID]; !ok {
+			missing = append(missing, def.ID)
+		}
+		if def.StatsMetricID != nil {
+			statsID := string(*def.StatsMetricID)
+			if _, ok := metricCatalog[statsID]; !ok {
+				missing = append(missing, statsID)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		slog.Warn("metric catalog missing entries", "metrics", missing)
+	}
 }
 
 func metricCatalogEntryForID(metricID string) metricCatalogEntry {

@@ -55,7 +55,7 @@ type App struct {
 	workerStopCh    chan struct{}
 	workerWG        sync.WaitGroup
 	closeOnce       sync.Once
-	isShuttingDown  bool
+	isShuttingDown  atomic.Bool
 	mu              sync.Mutex
 	updateMu        sync.Mutex
 	debounceTimer   *time.Timer
@@ -362,7 +362,7 @@ func (a *App) requestLogFileChange(path string) {
 		return
 	}
 	a.mu.Lock()
-	if a.isShuttingDown || a.changeReqCh == nil {
+	if a.isShuttingDown.Load() || a.changeReqCh == nil {
 		a.mu.Unlock()
 		return
 	}
@@ -415,53 +415,53 @@ func (a *App) changeLogFile(path string) {
 	a.doSetStatus(lang.X("app.status.loaded", "Loaded: {{.Path}} — watching for changes…", map[string]any{"Path": shortPath(path)}))
 
 	// Start tail watcher from current end-of-file
-	w, err := watcher.NewLogWatcher(path)
+	w, err := watcher.NewLogWatcher(path, watcher.WatcherConfig{
+		OnNewData: func(lines []string, startOffset int64, endOffset int64) {
+			if !a.isCurrentWatcherGeneration(gen) {
+				return
+			}
+			if err := a.service.ImportLines(a.ctx, path, lines, startOffset, endOffset); err != nil {
+				slog.Error("import error", "path", path, "error", err)
+				a.doSetStatus(lang.X("app.error.import", "Import error: {{.Error}}", map[string]any{"Error": err}))
+				return
+			}
+			if !a.isCurrentWatcherGeneration(gen) {
+				return
+			}
+			// Debounce: collapse rapid-fire OnNewData events into a single update
+			a.debounceMu.Lock()
+			if a.debounceTimer != nil {
+				a.debounceTimer.Stop()
+			}
+			a.debounceTimer = time.AfterFunc(time.Second, func() {
+				if a.isCurrentWatcherGeneration(gen) {
+					a.doUpdateStats()
+				}
+			})
+			a.debounceMu.Unlock()
+		},
+		OnNewLogFile: func(nextPath string) {
+			if !a.isCurrentWatcherGeneration(gen) {
+				return
+			}
+			slog.Info("new log file detected", "path", nextPath)
+			// Mark the current (now-old) log file as fully imported so future
+			// bootstrap runs skip it entirely.
+			a.service.MarkLogFullyImported(a.ctx, path)
+			a.requestLogFileChange(nextPath)
+		},
+		OnError: func(err error) {
+			if !a.isCurrentWatcherGeneration(gen) {
+				return
+			}
+			slog.Error("watcher error", "path", path, "error", err)
+			a.doSetStatus(lang.X("app.error.watcher", "Watcher error: {{.Error}}", map[string]any{"Error": err}))
+		},
+	})
 	if err != nil {
 		slog.Error("watcher creation failed", "path", path, "error", err)
 		a.doSetStatus(lang.X("app.error.watcher", "Watcher error: {{.Error}}", map[string]any{"Error": err}))
 		return
-	}
-
-	w.OnNewData = func(lines []string, startOffset int64, endOffset int64) {
-		if !a.isCurrentWatcherGeneration(gen) {
-			return
-		}
-		if err := a.service.ImportLines(a.ctx, path, lines, startOffset, endOffset); err != nil {
-			slog.Error("import error", "path", path, "error", err)
-			a.doSetStatus(lang.X("app.error.import", "Import error: {{.Error}}", map[string]any{"Error": err}))
-			return
-		}
-		if !a.isCurrentWatcherGeneration(gen) {
-			return
-		}
-		// Debounce: collapse rapid-fire OnNewData events into a single update
-		a.debounceMu.Lock()
-		if a.debounceTimer != nil {
-			a.debounceTimer.Stop()
-		}
-		a.debounceTimer = time.AfterFunc(time.Second, func() {
-			if a.isCurrentWatcherGeneration(gen) {
-				a.doUpdateStats()
-			}
-		})
-		a.debounceMu.Unlock()
-	}
-	w.OnNewLogFile = func(nextPath string) {
-		if !a.isCurrentWatcherGeneration(gen) {
-			return
-		}
-		slog.Info("new log file detected", "path", nextPath)
-		// Mark the current (now-old) log file as fully imported so future
-		// bootstrap runs skip it entirely.
-		a.service.MarkLogFullyImported(a.ctx, path)
-		a.requestLogFileChange(nextPath)
-	}
-	w.OnError = func(err error) {
-		if !a.isCurrentWatcherGeneration(gen) {
-			return
-		}
-		slog.Error("watcher error", "path", path, "error", err)
-		a.doSetStatus(lang.X("app.error.watcher", "Watcher error: {{.Error}}", map[string]any{"Error": err}))
 	}
 
 	// Start from end of file (we already parsed the full history above)
@@ -479,7 +479,7 @@ func (a *App) changeLogFile(path string) {
 	slog.Info("watcher started", "path", path)
 
 	a.mu.Lock()
-	if a.watcherGen == gen && !a.isShuttingDown {
+	if a.watcherGen == gen && !a.isShuttingDown.Load() {
 		a.watcher = w
 	} else {
 		w.Stop()
@@ -490,14 +490,14 @@ func (a *App) changeLogFile(path string) {
 func (a *App) isCurrentWatcherGeneration(gen uint64) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return !a.isShuttingDown && a.watcherGen == gen
+	return !a.isShuttingDown.Load() && a.watcherGen == gen
 }
 
 func (a *App) shutdown() {
 	a.closeOnce.Do(func() {
 		slog.Info("shutting down")
 		a.mu.Lock()
-		a.isShuttingDown = true
+		a.isShuttingDown.Store(true)
 		a.watcherGen++
 		if a.cancel != nil {
 			a.cancel()
@@ -617,13 +617,13 @@ func (a *App) doRefreshCurrentTab() {
 	case tabSettings:
 		if a.settingsTab == nil || a.settingsPath != path {
 			dbPath := a.dbPath
-			a.settingsTab = NewSettingsTab(
-				path,
-				a.win,
-				func(nextPath string) { a.requestLogFileChange(nextPath) },
-				a.metricState,
-				a.metadata,
-				func() {
+			a.settingsTab = NewSettingsTab(SettingsTabConfig{
+				CurrentPath:  path,
+				Window:       a.win,
+				OnPathChange: func(nextPath string) { a.requestLogFileChange(nextPath) },
+				MetricState:  a.metricState,
+				Metadata:     a.metadata,
+				OnMetricsChange: func() {
 					a.mu.Lock()
 					activeTab := a.currentTab
 					a.mu.Unlock()
@@ -631,9 +631,9 @@ func (a *App) doRefreshCurrentTab() {
 						a.doRefreshCurrentTab()
 					}
 				},
-				dbPath,
-				func() { a.doResetDB() },
-			)
+				DBPath:  dbPath,
+				OnReset: func() { a.doResetDB() },
+			})
 			a.settingsPath = path
 		}
 		obj = a.settingsTab

@@ -91,11 +91,32 @@ func (r *MemoryRepository) ListHands(_ context.Context, f HandFilter) ([]*parser
 }
 
 func (r *MemoryRepository) CountHands(ctx context.Context, f HandFilter) (int, error) {
-	hands, err := r.ListHands(ctx, f)
-	if err != nil {
-		return 0, err
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	count := 0
+	for _, entry := range r.hands {
+		h := entry.hand
+		if h == nil {
+			continue
+		}
+		if f.OnlyComplete && !h.IsComplete {
+			continue
+		}
+		if f.FromTime != nil && h.StartTime.Before(*f.FromTime) {
+			continue
+		}
+		if f.ToTime != nil && h.StartTime.After(*f.ToTime) {
+			continue
+		}
+		if f.LocalSeat != nil {
+			if _, ok := h.Players[*f.LocalSeat]; !ok {
+				continue
+			}
+		}
+		count++
 	}
-	return len(hands), nil
+	return count, nil
 }
 
 // GetHandByUID returns the full hand for the given UID, or nil if not found.
@@ -192,7 +213,7 @@ func (r *MemoryRepository) ListHandsAfter(_ context.Context, after time.Time, lo
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	out := make([]*parser.Hand, 0)
+	out := make([]*parser.Hand, 0, len(r.hands))
 	for uid, entry := range r.hands {
 		h := entry.hand
 		if h == nil || !h.IsComplete {
@@ -228,7 +249,7 @@ func (r *MemoryRepository) GetCursor(_ context.Context, sourcePath string) (*Imp
 	}
 	copyCursor := c
 	if c.WorldCtx != nil {
-		wc := *c.WorldCtx // parser.WorldContext is a flat struct; shallow copy is sufficient
+		wc := c.WorldCtx.Clone()
 		copyCursor.WorldCtx = &wc
 	}
 	return &copyCursor, nil

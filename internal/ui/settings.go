@@ -22,28 +22,31 @@ type SettingsTab struct {
 	win             fyne.Window
 }
 
-func NewSettingsTab(
-	currentPath string,
-	win fyne.Window,
-	onPathChange func(string),
-	metricState *MetricVisibilityState,
-	metadata AppMetadata,
-	onMetricsChange func(),
-	dbPath string,
-	onReset func(),
-) fyne.CanvasObject {
+type SettingsTabConfig struct {
+	CurrentPath     string
+	Window          fyne.Window
+	OnPathChange    func(string)
+	MetricState     *MetricVisibilityState
+	Metadata        AppMetadata
+	OnMetricsChange func()
+	DBPath          string
+	OnReset         func()
+}
+
+func NewSettingsTab(cfg SettingsTabConfig) fyne.CanvasObject {
+	metricState := cfg.MetricState
 	if metricState == nil {
 		metricState = NewMetricVisibilityState()
 	}
 	st := &SettingsTab{
-		logPath:         currentPath,
-		dbPath:          dbPath,
-		onPathChange:    onPathChange,
-		onMetricsChange: onMetricsChange,
-		onReset:         onReset,
+		logPath:         cfg.CurrentPath,
+		dbPath:          cfg.DBPath,
+		onPathChange:    cfg.OnPathChange,
+		onMetricsChange: cfg.OnMetricsChange,
+		onReset:         cfg.OnReset,
 		metricState:     metricState,
-		metadata:        metadata,
-		win:             win,
+		metadata:        cfg.Metadata,
+		win:             cfg.Window,
 	}
 	return st.build()
 }

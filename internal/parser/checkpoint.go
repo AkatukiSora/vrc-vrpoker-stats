@@ -24,6 +24,12 @@ type WorldContext struct {
 	WorldDetected    bool
 }
 
+// Clone returns a copy of the world context. Update this if pointer or slice
+// fields are added in the future.
+func (wc WorldContext) Clone() WorldContext {
+	return wc
+}
+
 // WorldContext returns the current world/instance state of the parser.
 // Call this after a hand boundary (when no hand is in progress) to capture
 // the context for persistence.

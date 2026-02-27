@@ -15,7 +15,7 @@ func TestLogWatcherStopIsIdempotent(t *testing.T) {
 		t.Fatalf("write log: %v", err)
 	}
 
-	lw, err := NewLogWatcher(logPath)
+	lw, err := NewLogWatcher(logPath, WatcherConfig{})
 	if err != nil {
 		t.Fatalf("new watcher: %v", err)
 	}
@@ -33,19 +33,17 @@ func TestLogWatcherDetectsNewSessionLogOnCreate(t *testing.T) {
 		t.Fatalf("write current log: %v", err)
 	}
 
-	lw, err := NewLogWatcher(currentLogPath)
-	if err != nil {
-		t.Fatalf("new watcher: %v", err)
-	}
-	defer lw.Stop()
-
 	newLogCh := make(chan string, 1)
-	lw.OnNewLogFile = func(path string) {
+	lw, err := NewLogWatcher(currentLogPath, WatcherConfig{OnNewLogFile: func(path string) {
 		select {
 		case newLogCh <- path:
 		default:
 		}
+	}})
+	if err != nil {
+		t.Fatalf("new watcher: %v", err)
 	}
+	defer lw.Stop()
 
 	if err := lw.Start(); err != nil {
 		t.Fatalf("start watcher: %v", err)
@@ -75,19 +73,17 @@ func TestLogWatcherIgnoresNonVRChatCreatedFiles(t *testing.T) {
 		t.Fatalf("write current log: %v", err)
 	}
 
-	lw, err := NewLogWatcher(currentLogPath)
-	if err != nil {
-		t.Fatalf("new watcher: %v", err)
-	}
-	defer lw.Stop()
-
 	newLogCh := make(chan string, 1)
-	lw.OnNewLogFile = func(path string) {
+	lw, err := NewLogWatcher(currentLogPath, WatcherConfig{OnNewLogFile: func(path string) {
 		select {
 		case newLogCh <- path:
 		default:
 		}
+	}})
+	if err != nil {
+		t.Fatalf("new watcher: %v", err)
 	}
+	defer lw.Stop()
 
 	if err := lw.Start(); err != nil {
 		t.Fatalf("start watcher: %v", err)

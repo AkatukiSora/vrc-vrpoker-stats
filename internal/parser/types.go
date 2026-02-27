@@ -188,6 +188,7 @@ type Hand struct {
 	SBSeat           int
 	BBSeat           int
 	ActiveSeats      []int // seats with players in this hand
+	ActiveSeatSet    map[int]struct{}
 	NumPlayers       int
 	TotalPot         int
 	WinnerSeat       int
@@ -212,11 +213,7 @@ func (h *Hand) IsStatsEligible() bool {
 	if h.HasDataAnomaly() {
 		return false
 	}
-	if h.StatsEligible {
-		return true
-	}
-	// Backward compatibility for legacy rows that predate this flag.
-	return true
+	return h.StatsEligible
 }
 
 // VRPokerWorldID is the VRChat world ID for VR Poker

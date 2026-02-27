@@ -56,6 +56,9 @@ type HandRangeTable struct {
 	// Rows/cols: A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, 2
 	Cells [13][13]*HandRangeCell
 
+	// ComboIndex maps ComboKey() to its cell for O(1) lookups.
+	ComboIndex map[string]*HandRangeCell
+
 	// Action totals across the whole range
 	TotalActions [RangeActionBucketCount]int
 
