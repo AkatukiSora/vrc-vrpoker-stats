@@ -248,8 +248,8 @@ func newHandListEntryRow() (fyne.CanvasObject, *handListEntryRefs) {
 		theme.Padding(),
 	), line1Objs...)
 	line2Wrap := container.New(newWeightedMinRowLayout(
-		[]float32{1.0, 1.2, 1.0, 0.8, 1.0},
-		[]float32{88, 96, 84, 72, 88},
+		[]float32{1.0, 1.2, 1.2, 0.8, 0.7},
+		[]float32{88, 116, 108, 72, 72},
 		theme.Padding(),
 	), line2Objs...)
 
