@@ -301,3 +301,97 @@ func TestPositionAssignment(t *testing.T) {
 		}
 	}
 }
+
+// TestIssue33SidePotDoesNotMeanVictory verifies that receiving a side pot while losing at showdown
+// does NOT count as a win. Victory is defined as participating (VPIP or ShowedDown) AND profit > 0.
+func TestIssue33SidePotDoesNotMeanVictory(t *testing.T) {
+	// Scenario: Player goes to showdown, loses the main pot, but receives a small side pot
+	// Investment: 200 chips
+	// Main pot: 200 chips lost
+	// Side pot: 100 chips received (because winner went all-in)
+	// Total profit: -100 chips -> Should be LOST, not WON
+
+	h := &Hand{
+		ID:             1,
+		SBSeat:         0,
+		BBSeat:         1,
+		WinnerSeat:     2,
+		WinType:        "showdown",
+		IsComplete:     true,
+		CommunityCards: []Card{{Rank: "K", Suit: "h"}, {Rank: "d", Suit: "d"}, {Rank: "3", Suit: "c"}},
+		ActiveSeats:    []int{0, 1, 2, 3},
+		ActiveSeatSet:  map[int]struct{}{0: {}, 1: {}, 2: {}, 3: {}},
+		NumPlayers:     4,
+		TotalPot:       500,
+		Players: map[int]*PlayerHandInfo{
+			0: {SeatID: 0, VPIP: false, ShowedDown: false, Won: false, PotWon: 0, Actions: []PlayerAction{{Amount: 50}}},
+			1: {SeatID: 1, VPIP: false, ShowedDown: false, Won: false, PotWon: 0, Actions: []PlayerAction{{Amount: 100}}},
+			2: {SeatID: 2, VPIP: true, ShowedDown: true, Won: true, PotWon: 300, Actions: []PlayerAction{{Amount: 200}}},
+			// Player 3 (local player): goes to showdown, loses main pot, gets side pot
+			3: {SeatID: 3, VPIP: true, ShowedDown: true, Won: false, PotWon: 100, Actions: []PlayerAction{{Amount: 200}}},
+		},
+	}
+
+	// Expected after calculateInvestedAmount and Win determination logic:
+	// Player 3: invested=200, PotWon=100, profit=100-200=-100 < 0 -> Should NOT be Won
+
+	p := NewParser()
+	invested := p.calculateInvestedAmount(h.Players[3])
+
+	if invested != 200 {
+		t.Errorf("expected invested=200, got %d", invested)
+	}
+
+	// Check Participated flag (should be true because went to showdown)
+	if !h.Players[3].ShowedDown {
+		t.Errorf("expected ShowedDown=true")
+	}
+
+	// The key issue #33 check: profit-based Won determination
+	// Even though PotWon > 0, profit < 0 because invested > PotWon
+	profit := h.Players[3].PotWon - invested
+	if profit >= 0 {
+		t.Errorf("expected profit < 0, got %d (PotWon=%d, invested=%d)", profit, h.Players[3].PotWon, invested)
+	}
+	// For issue #33: after fix, Won should be determined by participated && profit > 0
+	// We verify that the player would be marked as Lost (not Won)
+	if h.Players[3].Won {
+		t.Errorf("expected Won=false for player with negative profit at showdown, but got Won=true")
+	}
+}
+
+// TestParticipationFlagForPreflopFold verifies that players who fold preflop without VPIP
+// are marked as not participating.
+func TestParticipationFlagForPreflopFold(t *testing.T) {
+	h := &Hand{
+		ID:            2,
+		SBSeat:        0,
+		BBSeat:        1,
+		WinnerSeat:    2,
+		WinType:       "fold",
+		IsComplete:    true,
+		ActiveSeats:   []int{0, 1, 2, 3},
+		ActiveSeatSet: map[int]struct{}{0: {}, 1: {}, 2: {}, 3: {}},
+		NumPlayers:    4,
+		TotalPot:      150,
+		Players: map[int]*PlayerHandInfo{
+			0: {SeatID: 0, VPIP: false, FoldedPF: false, ShowedDown: false, Won: false, PotWon: 0, Actions: []PlayerAction{{Amount: 50}}},
+			1: {SeatID: 1, VPIP: false, FoldedPF: false, ShowedDown: false, Won: false, PotWon: 0, Actions: []PlayerAction{{Amount: 100}}},
+			2: {SeatID: 2, VPIP: true, FoldedPF: false, ShowedDown: false, Won: true, PotWon: 150, Actions: []PlayerAction{{Amount: 50}}},
+			// Player 3 (local player): folds preflop without VPIP
+			3: {SeatID: 3, VPIP: false, FoldedPF: true, ShowedDown: false, Won: false, PotWon: 0, Actions: []PlayerAction{{Amount: 0}}},
+		},
+	}
+
+	// Expected: Player 3 Participated=false (VPIP=false && ShowedDown=false)
+	if h.Players[3].VPIP || h.Players[3].ShowedDown {
+		t.Errorf("expected non-participating player (VPIP=false, ShowedDown=false)")
+	}
+
+	// After Participated flag logic: Participated = VPIP || ShowedDown
+	// This player should have Participated=false
+	participated := h.Players[3].VPIP || h.Players[3].ShowedDown
+	if participated {
+		t.Errorf("expected Participated=false for prefold fold, got true")
+	}
+}

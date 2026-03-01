@@ -135,12 +135,12 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 		}
 
 		m.incOpp(MetricWWSF)
-		if pi.Won {
+		if pi.Participated && pi.Won {
 			m.incCount(MetricWWSF)
 		}
 	}
 
-	if pi.ShowedDown {
+	if pi.Participated && pi.ShowedDown {
 		m.incOpp(MetricWSD)
 		if pi.Won {
 			m.incCount(MetricWSD)

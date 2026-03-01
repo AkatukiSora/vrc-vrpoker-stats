@@ -526,10 +526,26 @@ func (p *Parser) finalizeCurrentHand() {
 	totalPot := 0
 	for _, pw := range p.pendingWinners {
 		p.ensurePlayer(pw.seatID)
-		h.Players[pw.seatID].Won = true
 		h.Players[pw.seatID].PotWon += pw.amount
 		totalPot += pw.amount
 		h.WinnerSeat = pw.seatID
+	}
+
+	// Determine won/lost status based on profit/loss and participation
+	for _, pi := range h.Players {
+		invested := p.calculateInvestedAmount(pi)
+		profit := pi.PotWon - invested
+
+		// Determine participation: participated if VPIP is true OR showed down
+		participated := pi.VPIP || pi.ShowedDown
+		pi.Participated = participated
+
+		// Won if: participated AND profit > 0
+		if participated {
+			pi.Won = profit > 0
+		} else {
+			pi.Won = false
+		}
 	}
 	h.TotalPot = totalPot
 
@@ -715,4 +731,16 @@ func parseLocationTags(tagsPart string) map[string]string {
 		out[token] = "1"
 	}
 	return out
+}
+
+// calculateInvestedAmount calculates the total amount a player invested in a hand
+func (p *Parser) calculateInvestedAmount(pi *PlayerHandInfo) int {
+	if pi == nil {
+		return 0
+	}
+	total := 0
+	for _, act := range pi.Actions {
+		total += act.Amount
+	}
+	return total
 }

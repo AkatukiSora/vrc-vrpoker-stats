@@ -125,7 +125,7 @@ func (c *Calculator) updateHandRange(table *HandRangeTable, h *parser.Hand, pi *
 		}
 	}
 
-	if pi.Won {
+	if pi.Participated && pi.Won {
 		cell.Won++
 	}
 
@@ -139,7 +139,7 @@ func (c *Calculator) updateHandRange(table *HandRangeTable, h *parser.Hand, pi *
 	if pfOK {
 		ppc.Actions[pfAction]++
 	}
-	if pi.Won {
+	if pi.Participated && pi.Won {
 		ppc.Won++
 	}
 }

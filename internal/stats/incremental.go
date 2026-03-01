@@ -60,7 +60,7 @@ func (ic *IncrementalCalculator) Feed(h *parser.Hand) {
 	s.TotalPotWon += localInfo.PotWon
 	s.TotalInvested += invested
 
-	if localInfo.Won {
+	if localInfo.Participated && localInfo.Won {
 		s.WonHands++
 		ps.Won++
 	}
@@ -91,7 +91,7 @@ func (ic *IncrementalCalculator) Feed(h *parser.Hand) {
 	if localInfo.ShowedDown {
 		s.ShowdownHands++
 		ps.Showdowns++
-		if localInfo.Won {
+		if localInfo.Participated && localInfo.Won {
 			s.WonShowdowns++
 			ps.WonShowdowns++
 		}

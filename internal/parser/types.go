@@ -162,11 +162,12 @@ type PlayerHandInfo struct {
 	Won        bool
 	PotWon     int
 	// Pre-flop action summary
-	VPIP       bool // Voluntarily Put money In Pot (called or raised PF, not blind)
-	PFR        bool // Pre-Flop Raised
-	ThreeBet   bool // 3-bet pre-flop
-	FoldTo3Bet bool // Folded to a 3-bet
-	FoldedPF   bool // Folded pre-flop
+	VPIP         bool // Voluntarily Put money In Pot (called or raised PF, not blind)
+	PFR          bool // Pre-Flop Raised
+	ThreeBet     bool // 3-bet pre-flop
+	FoldTo3Bet   bool // Folded to a 3-bet
+	FoldedPF     bool // Folded pre-flop
+	Participated bool // Participated in hand (not a pre-flop fold)
 }
 
 // Hand represents a single poker hand
