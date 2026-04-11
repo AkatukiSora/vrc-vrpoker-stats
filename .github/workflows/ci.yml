@@ -92,6 +92,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gomod-
 
+      - name: Install Wayland & GL build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libegl-dev \
+            libgles2-mesa-dev \
+            pkg-config \
+            gcc
+
       - name: Run hand-history UI regression suite
         run: mise run test-ui
 

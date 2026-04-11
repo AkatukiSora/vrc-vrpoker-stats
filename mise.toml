@@ -96,7 +96,7 @@ run = 'go test -cover ./...'
 
 [tasks.test-ui]
 description = "Run hand-history UI regression suite"
-run = "go test -run 'TestHand.*' ./internal/ui/..."
+run = "go test -tags \"$BUILD_TAGS\" -run 'TestHand.*' ./internal/ui/..."
 
 [tasks.test-coverage]
 description = "Generate test coverage report"
