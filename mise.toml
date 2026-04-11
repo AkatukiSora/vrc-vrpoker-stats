@@ -91,16 +91,20 @@ depends = ["build-debug"]
 run = './"${BINARY}-debug" --debug'
 
 [tasks.test]
-description = "Run unit tests (parser/stats/watcher only; UI has no tests)"
-run = 'go test -v -run "Test[^R]" ./internal/parser/... ./internal/stats/... ./internal/watcher/...'
+description = "Run unit tests (parser/stats/watcher fast suite)"
+run = 'go test -cover ./...'
 
-[tasks.test-all]
-description = "Run all tests including real VRChat log integration test"
-run = "go test -v ./internal/parser/... ./internal/stats/... ./internal/watcher/..."
+[tasks.test-ui]
+description = "Run hand-history UI regression suite"
+run = "go test -run 'TestHand.*' ./internal/ui/..."
 
-[tasks.test-parser]
-description = "Run parser tests only"
-run = "go test -v ./internal/parser/..."
+[tasks.test-coverage]
+description = "Generate test coverage report"
+run = """
+  go test -coverprofile=coverage.out ./...
+  go tool cover -html=coverage.out
+  rm coverage.out
+"""
 
 [tasks.lint]
 description = "Run go vet"
@@ -175,4 +179,4 @@ run = '''
 
 [tasks.ci]
 description = "Run full CI pipeline locally (lint + test + build)"
-depends = ["lint", "test", "build"]
+depends = ["lint", "test", "test-ui", "build"]
