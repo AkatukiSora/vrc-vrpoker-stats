@@ -52,10 +52,14 @@ jobs:
             exit 1
           fi
 
-      - name: go test
-        run: |
-          go vet ./...
-          go test -v -coverprofile=coverage.txt -covermode=atomic ./...
+      - name: Check i18n coverage (UI strings)
+        run: mise run check-i18n
+
+      - name: Vet (parser/stats/watcher — no CGO/X11 needed)
+        run: go vet ./internal/parser/... ./internal/stats/... ./internal/watcher/...
+
+      - name: Unit tests (parser/stats/watcher)
+        run: go test -v ./internal/parser/... ./internal/stats/... ./internal/watcher/...
 
       # Save Go modules cache after verify succeeds
       - name: Save Go modules
