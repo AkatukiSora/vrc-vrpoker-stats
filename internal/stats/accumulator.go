@@ -174,13 +174,13 @@ func (m *metricAccumulator) consumeHand(h *parser.Hand, pi *parser.PlayerHandInf
 		}
 	}
 
-	if facesPreflopAggressor && len(h.CommunityCards) >= 3 && hasOpponentAggressionOnStreet(h, pi.SeatID, parser.StreetFlop) && hasActionOnStreet(pi, parser.StreetFlop, anyAction) {
+	if facesPreflopAggressor && len(h.CommunityCards) >= 3 && hasSpecificOpponentAggressionOnStreet(h, pi.SeatID, parser.StreetFlop, preflopAggressorSeat) && hasActionOnStreet(pi, parser.StreetFlop, anyAction) {
 		m.incOpp(MetricFoldToFlopCBet)
 		if hasActionOnStreet(pi, parser.StreetFlop, isFoldAction) {
 			m.incCount(MetricFoldToFlopCBet)
 		}
 	}
-	if facesPreflopAggressor && len(h.CommunityCards) >= 4 && hasOpponentAggressionOnStreet(h, pi.SeatID, parser.StreetTurn) && hasActionOnStreet(pi, parser.StreetTurn, anyAction) {
+	if facesPreflopAggressor && len(h.CommunityCards) >= 4 && hasSpecificOpponentAggressionOnStreet(h, pi.SeatID, parser.StreetTurn, preflopAggressorSeat) && hasActionOnStreet(pi, parser.StreetTurn, anyAction) {
 		m.incOpp(MetricFoldToTurnCBet)
 		if hasActionOnStreet(pi, parser.StreetTurn, isFoldAction) {
 			m.incCount(MetricFoldToTurnCBet)
@@ -342,11 +342,18 @@ func actedOnStreet(pi *parser.PlayerHandInfo, street parser.Street) bool {
 }
 
 func hasOpponentAggressionOnStreet(h *parser.Hand, localSeat int, street parser.Street) bool {
+	return hasSpecificOpponentAggressionOnStreet(h, localSeat, street, -1)
+}
+
+func hasSpecificOpponentAggressionOnStreet(h *parser.Hand, localSeat int, street parser.Street, aggressorSeat int) bool {
 	if h == nil {
 		return false
 	}
 	for seat, p := range h.Players {
 		if p == nil || seat == localSeat {
+			continue
+		}
+		if aggressorSeat >= 0 && seat != aggressorSeat {
 			continue
 		}
 		for _, a := range p.Actions {

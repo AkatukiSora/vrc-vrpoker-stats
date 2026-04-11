@@ -85,6 +85,18 @@ func TestLastPreflopAggressorSeat(t *testing.T) {
 			}),
 			want: 5,
 		},
+		{
+			name: "same timestamp uses amount before seat",
+			hand: testHandWithActions(map[int][]PlayerAction{
+				1: {{Timestamp: ts(1), Street: StreetPreFlop, Action: ActionBlindSB, Amount: 10}},
+				2: {
+					{Timestamp: ts(2), Street: StreetPreFlop, Action: ActionBlindBB, Amount: 20},
+					{Timestamp: ts(3), Street: StreetPreFlop, Action: ActionRaise, Amount: 180},
+				},
+				5: {{Timestamp: ts(3), Street: StreetPreFlop, Action: ActionRaise, Amount: 60}},
+			}),
+			want: 2,
+		},
 	}
 
 	for _, tt := range tests {

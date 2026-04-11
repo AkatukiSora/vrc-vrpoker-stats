@@ -510,6 +510,20 @@ func TestNoCBetOpportunityWithoutPreflopAggressor(t *testing.T) {
 	}
 }
 
+func TestFoldToCBetIgnoresNonAggressorStab(t *testing.T) {
+	h := &parser.Hand{CommunityCards: []parser.Card{{Rank: "A", Suit: "h"}, {Rank: "K", Suit: "d"}, {Rank: "Q", Suit: "c"}}, Players: map[int]*parser.PlayerHandInfo{
+		1: {SeatID: 1, PFR: true, Actions: []parser.PlayerAction{{PlayerID: 1, Street: parser.StreetPreFlop, Action: parser.ActionRaise}, {PlayerID: 1, Street: parser.StreetFlop, Action: parser.ActionFold}}},
+		2: {SeatID: 2, Actions: []parser.PlayerAction{{PlayerID: 2, Street: parser.StreetPreFlop, Action: parser.ActionRaise}, {PlayerID: 2, Street: parser.StreetFlop, Action: parser.ActionCheck}}},
+		3: {SeatID: 3, Actions: []parser.PlayerAction{{PlayerID: 3, Street: parser.StreetPreFlop, Action: parser.ActionCall}, {PlayerID: 3, Street: parser.StreetFlop, Action: parser.ActionBet}}},
+	}}
+
+	openerAcc := newMetricAccumulator()
+	openerAcc.consumeHand(h, h.Players[1], 0)
+	if openerAcc.opps[MetricFoldToFlopCBet] != 0 {
+		t.Fatalf("fold-to-flop-cbet opps = %d, want 0 when only non-aggressor bets", openerAcc.opps[MetricFoldToFlopCBet])
+	}
+}
+
 // Benchmark tests
 func BenchmarkMetricAccumulatorIncOpp(b *testing.B) {
 	acc := newMetricAccumulator()
