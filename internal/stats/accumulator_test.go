@@ -457,6 +457,59 @@ func TestHasOpponentAggressionOnStreet(t *testing.T) {
 	}
 }
 
+func TestCBetOpportunityUsesLastPreflopAggressor(t *testing.T) {
+	h := &parser.Hand{CommunityCards: []parser.Card{{Rank: "A", Suit: "h"}, {Rank: "K", Suit: "d"}, {Rank: "Q", Suit: "c"}}, Players: map[int]*parser.PlayerHandInfo{
+		1: {SeatID: 1, PFR: true, Actions: []parser.PlayerAction{{PlayerID: 1, Street: parser.StreetPreFlop, Action: parser.ActionRaise}}},
+		2: {SeatID: 2, Actions: []parser.PlayerAction{{PlayerID: 2, Street: parser.StreetPreFlop, Action: parser.ActionRaise}, {PlayerID: 2, Street: parser.StreetFlop, Action: parser.ActionBet}}},
+	}}
+
+	openerAcc := newMetricAccumulator()
+	openerAcc.consumeHand(h, h.Players[1], 0)
+	if openerAcc.opps[MetricFlopCBet] != 0 {
+		t.Fatalf("opener flop c-bet opps = %d, want 0", openerAcc.opps[MetricFlopCBet])
+	}
+
+	aggressorAcc := newMetricAccumulator()
+	aggressorAcc.consumeHand(h, h.Players[2], 0)
+	if aggressorAcc.opps[MetricFlopCBet] != 1 || aggressorAcc.counts[MetricFlopCBet] != 1 {
+		t.Fatalf("final aggressor flop c-bet opp/count = %d/%d, want 1/1", aggressorAcc.opps[MetricFlopCBet], aggressorAcc.counts[MetricFlopCBet])
+	}
+}
+
+func TestCBetMetricsDoNotTreatOpenRaiserAsAggressorAfterThreeBet(t *testing.T) {
+	h := &parser.Hand{CommunityCards: []parser.Card{{Rank: "A", Suit: "h"}, {Rank: "K", Suit: "d"}, {Rank: "Q", Suit: "c"}}, Players: map[int]*parser.PlayerHandInfo{
+		1: {SeatID: 1, PFR: true, Actions: []parser.PlayerAction{{PlayerID: 1, Street: parser.StreetPreFlop, Action: parser.ActionRaise}, {PlayerID: 1, Street: parser.StreetFlop, Action: parser.ActionFold}}},
+		2: {SeatID: 2, ThreeBet: true, Actions: []parser.PlayerAction{{PlayerID: 2, Street: parser.StreetPreFlop, Action: parser.ActionRaise}, {PlayerID: 2, Street: parser.StreetFlop, Action: parser.ActionBet}}},
+	}}
+
+	openerAcc := newMetricAccumulator()
+	openerAcc.consumeHand(h, h.Players[1], 0)
+	if openerAcc.opps[MetricFlopCBet] != 0 || openerAcc.opps[MetricFoldToFlopCBet] != 1 || openerAcc.counts[MetricFoldToFlopCBet] != 1 {
+		t.Fatalf("opener metrics unexpected: flopOpp=%d foldOpp=%d foldCount=%d", openerAcc.opps[MetricFlopCBet], openerAcc.opps[MetricFoldToFlopCBet], openerAcc.counts[MetricFoldToFlopCBet])
+	}
+
+	aggressorAcc := newMetricAccumulator()
+	aggressorAcc.consumeHand(h, h.Players[2], 0)
+	if aggressorAcc.opps[MetricFlopCBet] != 1 || aggressorAcc.counts[MetricFlopCBet] != 1 || aggressorAcc.opps[MetricFoldToFlopCBet] != 0 {
+		t.Fatalf("3-bettor metrics unexpected: flopOpp=%d flopCount=%d foldOpp=%d", aggressorAcc.opps[MetricFlopCBet], aggressorAcc.counts[MetricFlopCBet], aggressorAcc.opps[MetricFoldToFlopCBet])
+	}
+}
+
+func TestNoCBetOpportunityWithoutPreflopAggressor(t *testing.T) {
+	h := &parser.Hand{CommunityCards: []parser.Card{{Rank: "A", Suit: "h"}, {Rank: "K", Suit: "d"}, {Rank: "Q", Suit: "c"}}, Players: map[int]*parser.PlayerHandInfo{
+		0: {SeatID: 0, Actions: []parser.PlayerAction{{PlayerID: 0, Street: parser.StreetPreFlop, Action: parser.ActionCall}, {PlayerID: 0, Street: parser.StreetFlop, Action: parser.ActionCheck}}},
+		1: {SeatID: 1, Actions: []parser.PlayerAction{{PlayerID: 1, Street: parser.StreetPreFlop, Action: parser.ActionCheck}, {PlayerID: 1, Street: parser.StreetFlop, Action: parser.ActionCheck}}},
+	}}
+
+	for seat, pi := range h.Players {
+		acc := newMetricAccumulator()
+		acc.consumeHand(h, pi, 0)
+		if acc.opps[MetricFlopCBet] != 0 || acc.opps[MetricFoldToFlopCBet] != 0 {
+			t.Fatalf("seat %d unexpected opps: flop=%d fold=%d", seat, acc.opps[MetricFlopCBet], acc.opps[MetricFoldToFlopCBet])
+		}
+	}
+}
+
 // Benchmark tests
 func BenchmarkMetricAccumulatorIncOpp(b *testing.B) {
 	acc := newMetricAccumulator()

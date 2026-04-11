@@ -213,3 +213,78 @@ func TestSaveImportBatchSQLiteUsesSourceSpanToAvoidDuplicateHands(t *testing.T) 
 		t.Fatalf("hand uid = %q, want %q", hands[0].HandUID, legacySource.HandUID)
 	}
 }
+
+func TestSQLiteRoundTripPreservesLastPreflopAggressorDerivation(t *testing.T) {
+	t.Parallel()
+
+	repo, err := NewSQLiteRepository(filepath.Join(t.TempDir(), "stats.db"))
+	if err != nil {
+		t.Fatalf("new sqlite repo: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = repo.Close()
+	})
+
+	base := time.Date(2026, 2, 23, 12, 0, 0, 0, time.UTC)
+	hand := &parser.Hand{
+		ID:              41,
+		StartTime:       base,
+		EndTime:         base.Add(15 * time.Second),
+		LocalPlayerSeat: 0,
+		Players: map[int]*parser.PlayerHandInfo{
+			0: {SeatID: 0, Actions: []parser.PlayerAction{{Timestamp: base.Add(1 * time.Second), PlayerID: 0, Street: parser.StreetPreFlop, Action: parser.ActionBlindSB, Amount: 10}, {Timestamp: base.Add(7 * time.Second), PlayerID: 0, Street: parser.StreetPreFlop, Action: parser.ActionFold, Amount: 0}}},
+			1: {SeatID: 1, PFR: true, Actions: []parser.PlayerAction{{Timestamp: base.Add(2 * time.Second), PlayerID: 1, Street: parser.StreetPreFlop, Action: parser.ActionBlindBB, Amount: 20}, {Timestamp: base.Add(4 * time.Second), PlayerID: 1, Street: parser.StreetPreFlop, Action: parser.ActionRaise, Amount: 60}}},
+			2: {SeatID: 2, Actions: []parser.PlayerAction{{Timestamp: base.Add(5 * time.Second), PlayerID: 2, Street: parser.StreetPreFlop, Action: parser.ActionRaise, Amount: 140}}},
+			3: {SeatID: 3, Actions: []parser.PlayerAction{{Timestamp: base.Add(3 * time.Second), PlayerID: 3, Street: parser.StreetPreFlop, Action: parser.ActionCall, Amount: 20}, {Timestamp: base.Add(6 * time.Second), PlayerID: 3, Street: parser.StreetPreFlop, Action: parser.ActionFold, Amount: 0}}},
+		},
+		SBSeat:        0,
+		BBSeat:        1,
+		NumPlayers:    4,
+		IsComplete:    true,
+		StatsEligible: true,
+	}
+
+	expectedSeat := parser.LastPreflopAggressorSeat(hand)
+	if expectedSeat != 2 {
+		t.Fatalf("original last preflop aggressor seat = %d, want 2", expectedSeat)
+	}
+	if !hand.Players[1].PFR {
+		t.Fatalf("fixture must keep the opener marked as PFR")
+	}
+	if hand.Players[2].PFR {
+		t.Fatalf("fixture must keep the final aggressor distinct from the stored PFR flag")
+	}
+
+	source := HandSourceRef{SourcePath: "test.log", StartByte: 0, EndByte: 256, StartLine: 1, EndLine: 12}
+	source.HandUID = GenerateHandUID(hand, source)
+	cursor := ImportCursor{SourcePath: source.SourcePath, NextByteOffset: source.EndByte, NextLineNumber: source.EndLine, UpdatedAt: time.Now()}
+
+	if _, err := repo.SaveImportBatch(context.Background(), []PersistedHand{{Hand: hand, Source: source}}, cursor); err != nil {
+		t.Fatalf("save import batch: %v", err)
+	}
+
+	var actionCount int
+	if err := repo.db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM hand_actions WHERE hand_uid = ?`, source.HandUID).Scan(&actionCount); err != nil {
+		t.Fatalf("count persisted hand actions: %v", err)
+	}
+	if actionCount != 7 {
+		t.Fatalf("persisted action rows = %d, want 7", actionCount)
+	}
+
+	reloaded, err := repo.GetHandByUID(context.Background(), source.HandUID)
+	if err != nil {
+		t.Fatalf("get hand by uid: %v", err)
+	}
+	if reloaded == nil {
+		t.Fatalf("reloaded hand is nil")
+	}
+	if !reloaded.Players[1].PFR {
+		t.Fatalf("reloaded opener must retain stored PFR flag")
+	}
+	if reloaded.Players[2].PFR {
+		t.Fatalf("reloaded final aggressor should still differ from the stored PFR flag")
+	}
+	if actual := parser.LastPreflopAggressorSeat(reloaded); actual != expectedSeat {
+		t.Fatalf("reloaded last preflop aggressor seat = %d, want %d", actual, expectedSeat)
+	}
+}
