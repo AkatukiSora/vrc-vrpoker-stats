@@ -188,7 +188,7 @@ func TestHandHistoryRefreshRestoreKeepsMatchingDetail(t *testing.T) {
 	h.fake.blockHand(testHand("hand-1", 2, "Tc", "Td"))
 
 	fyne.DoAndWait(func() {
-		h.app.handHistoryView.UpdateDetail(container.NewCenter(widget.NewLabel("stale detail")))
+		h.app.handHistoryView.UpdateDetail(container.NewCenter(widget.NewLabel("stale detail"))) //i18n:ignore test sentinel string
 		h.app.handHistoryView.UpdatePage(
 			[]persistence.HandSummary{handSummary("hand-2", 1), handSummary("hand-1", 2)},
 			0,
