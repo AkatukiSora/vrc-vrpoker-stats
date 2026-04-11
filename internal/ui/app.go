@@ -42,37 +42,38 @@ type AppMetadata struct {
 
 // App is the main application controller
 type App struct {
-	ctx             context.Context
-	cancel          context.CancelFunc
-	fyneApp         fyne.App
-	win             fyne.Window
-	logPath         string
-	dbPath          string
-	service         application.AppService
-	watcher         *watcher.LogWatcher
-	watcherGen      uint64
-	changeReqCh     chan string
-	workerStopCh    chan struct{}
-	workerWG        sync.WaitGroup
-	closeOnce       sync.Once
-	isShuttingDown  atomic.Bool
-	mu              sync.Mutex
-	updateMu        sync.Mutex
-	debounceTimer   *time.Timer
-	debounceMu      sync.Mutex
-	lastStats       *stats.Stats
-	lastLocalSeat   int
-	rangeState      *HandRangeViewState
-	historyState    *HandHistoryViewState
-	metricState     *MetricVisibilityState
-	settingsTab     fyne.CanvasObject
-	settingsPath    string
-	overviewView    *overviewTabView
-	positionView    *positionStatsTabView
-	handRangeView   *handRangeTabView
-	handHistoryView *handHistoryTabView
-	currentTab      appTab
-	navExpanded     bool
+	ctx              context.Context
+	cancel           context.CancelFunc
+	fyneApp          fyne.App
+	win              fyne.Window
+	logPath          string
+	dbPath           string
+	service          application.AppService
+	watcher          *watcher.LogWatcher
+	watcherGen       uint64
+	handDetailReqGen uint64
+	changeReqCh      chan string
+	workerStopCh     chan struct{}
+	workerWG         sync.WaitGroup
+	closeOnce        sync.Once
+	isShuttingDown   atomic.Bool
+	mu               sync.Mutex
+	updateMu         sync.Mutex
+	debounceTimer    *time.Timer
+	debounceMu       sync.Mutex
+	lastStats        *stats.Stats
+	lastLocalSeat    int
+	rangeState       *HandRangeViewState
+	historyState     *HandHistoryViewState
+	metricState      *MetricVisibilityState
+	settingsTab      fyne.CanvasObject
+	settingsPath     string
+	overviewView     *overviewTabView
+	positionView     *positionStatsTabView
+	handRangeView    *handRangeTabView
+	handHistoryView  *handHistoryTabView
+	currentTab       appTab
+	navExpanded      bool
 	// historyPageRunning is 1 while loadHandHistoryPage is executing.
 	// pendingHistoryPage holds the next page to load (-1 = none).
 	historyPageRunning int32
@@ -493,6 +494,35 @@ func (a *App) isCurrentWatcherGeneration(gen uint64) bool {
 	return !a.isShuttingDown.Load() && a.watcherGen == gen
 }
 
+func handDetailSelectionKey(uid string) string {
+	if uid == "" {
+		return ""
+	}
+	return "uid:" + uid
+}
+
+func (a *App) nextHandDetailRequestGeneration() uint64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.handDetailReqGen++
+	return a.handDetailReqGen
+}
+
+func (a *App) isCurrentHandDetailRequestGeneration(gen uint64) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return !a.isShuttingDown.Load() && a.handDetailReqGen == gen
+}
+
+func (a *App) canApplyHandDetailRequest(gen uint64, uid string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return !a.isShuttingDown.Load() &&
+		a.handDetailReqGen == gen &&
+		a.historyState != nil &&
+		a.historyState.SelectedHandKey == handDetailSelectionKey(uid)
+}
+
 func (a *App) shutdown() {
 	a.closeOnce.Do(func() {
 		slog.Info("shutting down")
@@ -601,7 +631,8 @@ func (a *App) doRefreshCurrentTab() {
 			a.handHistoryView = newHandHistoryTabView(a.historyState, func(page int) {
 				go a.loadHandHistoryPage(page)
 			}, func(uid string) {
-				go a.loadHandDetail(uid)
+				reqGen := a.nextHandDetailRequestGeneration()
+				go a.loadHandDetail(uid, reqGen)
 			})
 		}
 		// Show current (possibly stale) state immediately.
@@ -717,6 +748,9 @@ func (a *App) loadHandHistoryPage(page int) {
 			// Do not update UI; loop to try any further pending request.
 			continue
 		}
+		if a.ctx.Err() != nil {
+			return
+		}
 
 		capturedPage := wantPage
 		capturedTotal := totalCount
@@ -743,7 +777,8 @@ func (a *App) doSetStatus(msg string) {
 
 // loadHandDetail fetches the full hand data for a single UID in a background goroutine
 // and then updates the handHistoryView detail panel on the Fyne main thread.
-func (a *App) loadHandDetail(uid string) {
+func (a *App) loadHandDetail(uid string, reqGen uint64) {
+
 	a.mu.Lock()
 	localSeat := a.lastLocalSeat
 	a.mu.Unlock()
@@ -751,8 +786,11 @@ func (a *App) loadHandDetail(uid string) {
 	h, err := a.service.GetHandByUID(a.ctx, uid)
 	if err != nil {
 		slog.Error("get hand by uid failed", "uid", uid, "error", err)
+		if a.ctx.Err() != nil {
+			return
+		}
 		fyne.Do(func() {
-			if a.handHistoryView == nil {
+			if !a.canApplyHandDetailRequest(reqGen, uid) || a.handHistoryView == nil {
 				return
 			}
 			a.handHistoryView.UpdateDetail(
@@ -763,8 +801,11 @@ func (a *App) loadHandDetail(uid string) {
 	}
 
 	detail := buildDetailPanel(h, localSeat)
+	if a.ctx.Err() != nil {
+		return
+	}
 	fyne.Do(func() {
-		if a.handHistoryView == nil {
+		if !a.canApplyHandDetailRequest(reqGen, uid) || a.handHistoryView == nil {
 			return
 		}
 		a.handHistoryView.UpdateDetail(detail)

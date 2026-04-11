@@ -401,20 +401,14 @@ func (v *handHistoryTabView) ensureInitialized() {
 			return
 		}
 		s := v.summaries[id]
-		v.state.SelectedHandKey = "uid:" + s.HandUID
+		selectedUID := s.HandUID
+		v.state.SelectedHandKey = "uid:" + selectedUID
 		if v.suppressSelect {
 			v.suppressSelect = false
 			return
 		}
 
-		loadingLabel := widget.NewLabel(lang.X("hand_history.detail.loading", "Loading hand details…"))
-		loadingLabel.Alignment = fyne.TextAlignCenter
-		v.detailContent.Objects = []fyne.CanvasObject{container.NewCenter(loadingLabel)}
-		v.detailContent.Refresh()
-
-		if v.onFetchHand != nil {
-			go v.onFetchHand(s.HandUID)
-		}
+		v.convergeDetailToUID(selectedUID)
 	}
 
 	v.split = container.NewHSplit(v.list, v.detailContent)
@@ -434,12 +428,34 @@ func (v *handHistoryTabView) restoreSelection() {
 		if "uid:"+s.HandUID == v.state.SelectedHandKey {
 			v.suppressSelect = true
 			v.list.Select(i)
+			v.convergeDetailToUID(s.HandUID)
 			return
 		}
 	}
 	v.list.UnselectAll()
 	v.state.SelectedHandKey = ""
 	v.showEmptyDetail()
+}
+
+func (v *handHistoryTabView) convergeDetailToUID(uid string) {
+	if uid == "" {
+		v.showEmptyDetail()
+		return
+	}
+	v.showLoadingDetail()
+	if v.onFetchHand != nil {
+		go v.onFetchHand(uid)
+	}
+}
+
+func (v *handHistoryTabView) showLoadingDetail() {
+	if v.detailContent == nil {
+		return
+	}
+	loadingLabel := widget.NewLabel(lang.X("hand_history.detail.loading", "Loading hand details…"))
+	loadingLabel.Alignment = fyne.TextAlignCenter
+	v.detailContent.Objects = []fyne.CanvasObject{container.NewCenter(loadingLabel)}
+	v.detailContent.Refresh()
 }
 
 func (v *handHistoryTabView) showEmptyDetail() {
