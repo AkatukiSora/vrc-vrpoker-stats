@@ -369,33 +369,7 @@ type seatAction struct {
 }
 
 func originalRaiserSeat(h *parser.Hand) int {
-	if h == nil {
-		return -1
-	}
-	var actions []seatAction
-	for seat, pi := range h.Players {
-		if pi == nil {
-			continue
-		}
-		for _, act := range pi.Actions {
-			if act.Street == parser.StreetPreFlop {
-				actions = append(actions, seatAction{seat: seat, act: act})
-			}
-		}
-	}
-	sort.Slice(actions, func(i, j int) bool {
-		if actions[i].act.Timestamp.Equal(actions[j].act.Timestamp) {
-			return actions[i].seat < actions[j].seat
-		}
-		return actions[i].act.Timestamp.Before(actions[j].act.Timestamp)
-	})
-	for _, a := range actions {
-		switch a.act.Action {
-		case parser.ActionBet, parser.ActionRaise, parser.ActionAllIn:
-			return a.seat
-		}
-	}
-	return -1
+	return parser.LastPreflopAggressorSeat(h)
 }
 
 func streetActions(h *parser.Hand, street parser.Street) []seatAction {
