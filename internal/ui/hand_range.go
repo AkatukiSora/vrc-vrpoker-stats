@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 
 	"fyne.io/fyne/v2"
@@ -233,12 +234,15 @@ func (w *rangeCellWidget) MinSize() fyne.Size {
 }
 
 func (w *rangeCellWidget) CreateRenderer() fyne.WidgetRenderer {
+	barStops, barColors := buildRangeCellStops(w.counts, w.dealt)
 	r := &rangeCellRenderer{
-		owner:  w,
-		bg:     canvas.NewRectangle(color.NRGBA{R: 0x2B, G: 0x2B, B: 0x2B, A: 0xFF}),
-		mask:   canvas.NewRectangle(color.Transparent),
-		border: canvas.NewRectangle(color.Transparent),
-		label:  canvas.NewText(w.label, color.White),
+		owner:     w,
+		bg:        canvas.NewRectangle(color.NRGBA{R: 0x2B, G: 0x2B, B: 0x2B, A: 0xFF}),
+		barStops:  barStops,
+		barColors: barColors,
+		mask:      canvas.NewRectangle(color.Transparent),
+		border:    canvas.NewRectangle(color.Transparent),
+		label:     canvas.NewText(w.label, color.White),
 	}
 	r.border.StrokeColor = color.NRGBA{R: 0x22, G: 0x22, B: 0x22, A: 0xFF}
 	r.border.StrokeWidth = 1
@@ -269,24 +273,12 @@ func (w *rangeCellWidget) CreateRenderer() fyne.WidgetRenderer {
 	outlineObjects = append(outlineObjects, r.label)
 	r.labelLayer = container.NewWithoutLayout(outlineObjects...)
 
-	r.barRaster = canvas.NewRasterWithPixels(func(x, _y, w, h int) color.Color {
-		if w <= 0 || h <= 0 || len(r.barStops) == 0 || len(r.barStops) != len(r.barColors) {
-			return color.Transparent
-		}
-
-		t := (float32(x) + 0.5) / float32(w)
-		for i, stop := range r.barStops {
-			if t <= stop {
-				return r.barColors[i]
-			}
-		}
-
-		return color.Transparent
-	})
+	r.barRaster = newRangeCellBarRaster(r.barStops, r.barColors)
+	r.barLayer = container.NewWithoutLayout(r.barRaster)
 
 	r.objects = make([]fyne.CanvasObject, 0, 5)
 	r.objects = append(r.objects, r.bg)
-	r.objects = append(r.objects, r.barRaster)
+	r.objects = append(r.objects, r.barLayer)
 	r.objects = append(r.objects, r.mask, r.border, r.labelLayer)
 	return r
 }
@@ -351,10 +343,53 @@ func buildRangeCellStops(counts [stats.RangeActionBucketCount]int, dealt int) ([
 	return stops, colors
 }
 
+func newRangeCellBarRaster(stops []float32, colors []color.NRGBA) *canvas.Raster {
+	stopsCopy := append([]float32(nil), stops...)
+	colorsCopy := append([]color.NRGBA(nil), colors...)
+	return canvas.NewRaster(func(w, h int) image.Image {
+		return newRangeCellBarImage(stopsCopy, colorsCopy, w, h)
+	})
+}
+
+func newRangeCellBarImage(stops []float32, colors []color.NRGBA, w, h int) image.Image {
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	if w <= 0 || h <= 0 || len(stops) == 0 || len(stops) != len(colors) {
+		return img
+	}
+
+	for x := 0; x < w; x++ {
+		c, ok := rangeCellBarColorAt(stops, colors, x, w)
+		if !ok {
+			continue
+		}
+		for y := 0; y < h; y++ {
+			img.SetNRGBA(x, y, c)
+		}
+	}
+
+	return img
+}
+
+func rangeCellBarColorAt(stops []float32, colors []color.NRGBA, x, width int) (color.NRGBA, bool) {
+	if width <= 0 || len(stops) == 0 || len(stops) != len(colors) {
+		return color.NRGBA{}, false
+	}
+
+	t := (float32(x) + 0.5) / float32(width)
+	for i, stop := range stops {
+		if t <= stop {
+			return colors[i], true
+		}
+	}
+
+	return color.NRGBA{}, false
+}
+
 type rangeCellRenderer struct {
 	owner *rangeCellWidget
 
 	bg           *canvas.Rectangle
+	barLayer     *fyne.Container
 	barRaster    *canvas.Raster
 	barStops     []float32
 	barColors    []color.NRGBA
@@ -370,6 +405,8 @@ type rangeCellRenderer struct {
 func (r *rangeCellRenderer) Layout(size fyne.Size) {
 	r.bg.Move(fyne.NewPos(0, 0))
 	r.bg.Resize(size)
+	r.barLayer.Move(fyne.NewPos(0, 0))
+	r.barLayer.Resize(size)
 	r.barRaster.Move(fyne.NewPos(0, 0))
 	r.barRaster.Resize(size)
 
@@ -398,7 +435,8 @@ func (r *rangeCellRenderer) MinSize() fyne.Size {
 
 func (r *rangeCellRenderer) Refresh() {
 	r.barStops, r.barColors = buildRangeCellStops(r.owner.counts, r.owner.dealt)
-	r.barRaster.Refresh()
+	r.barRaster = newRangeCellBarRaster(r.barStops, r.barColors)
+	r.barLayer.Objects = []fyne.CanvasObject{r.barRaster}
 
 	if r.owner.isSelected {
 		r.border.StrokeColor = color.NRGBA{R: 0xF5, G: 0xF5, B: 0xF5, A: 0xFF}
@@ -420,6 +458,7 @@ func (r *rangeCellRenderer) Refresh() {
 		o.Refresh()
 	}
 	r.Layout(r.owner.Size())
+	r.barLayer.Refresh()
 	for _, obj := range r.objects {
 		canvas.Refresh(obj)
 	}
@@ -552,7 +591,7 @@ func (v *handRangeView) rebuild() {
 }
 
 func (v *handRangeView) rebuildGrid() {
-	if v.leftWrap.Objects == nil || len(v.leftWrap.Objects) == 0 {
+	if len(v.leftWrap.Objects) == 0 {
 		v.leftWrap.Objects = []fyne.CanvasObject{container.NewScroll(v.buildGridOnce())}
 	}
 	selectedCombo := ""
