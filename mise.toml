@@ -92,7 +92,7 @@ run = './"${BINARY}-debug" --debug'
 
 [tasks.test]
 description = "Run unit tests (parser/stats/watcher fast suite)"
-run = 'go test -cover ./...'
+run = 'go test -v ./internal/parser/... ./internal/stats/... ./internal/watcher/...'
 
 [tasks.test-ui]
 description = "Run hand-history UI regression suite"

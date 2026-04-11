@@ -631,7 +631,8 @@ func (a *App) doRefreshCurrentTab() {
 			a.handHistoryView = newHandHistoryTabView(a.historyState, func(page int) {
 				go a.loadHandHistoryPage(page)
 			}, func(uid string) {
-				go a.loadHandDetail(uid)
+				reqGen := a.nextHandDetailRequestGeneration()
+				go a.loadHandDetail(uid, reqGen)
 			})
 		}
 		// Show current (possibly stale) state immediately.
@@ -776,8 +777,7 @@ func (a *App) doSetStatus(msg string) {
 
 // loadHandDetail fetches the full hand data for a single UID in a background goroutine
 // and then updates the handHistoryView detail panel on the Fyne main thread.
-func (a *App) loadHandDetail(uid string) {
-	reqGen := a.nextHandDetailRequestGeneration()
+func (a *App) loadHandDetail(uid string, reqGen uint64) {
 
 	a.mu.Lock()
 	localSeat := a.lastLocalSeat
