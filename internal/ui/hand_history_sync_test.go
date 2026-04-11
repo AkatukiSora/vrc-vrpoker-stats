@@ -144,7 +144,7 @@ func TestHandHistoryRapidReselectionIgnoresStaleSuccess(t *testing.T) {
 	if got := h.app.historyState.SelectedHandKey; got != handDetailSelectionKey("hand-2") {
 		t.Fatalf("unexpected selected hand key after stale success release: %q", got)
 	}
-	if got := h.detailText(); !strings.Contains(got, "Q") || strings.Contains(got, "A") {
+	if got := h.detailText(); !strings.Contains(got, "Q♠") || !strings.Contains(got, "Q♣") || strings.Contains(got, "A♥") || strings.Contains(got, "K♦") {
 		t.Fatalf("expected stale success to be ignored, got %q", got)
 	}
 }
@@ -171,7 +171,7 @@ func TestHandHistoryStaleErrorIgnored(t *testing.T) {
 	if got := h.detailText(); strings.Contains(got, lang.X("hand_history.detail.error", "Failed to load hand details.")) {
 		t.Fatalf("expected stale error to be ignored, got %q", got)
 	}
-	if got := h.detailText(); !strings.Contains(got, "Q") || strings.Contains(got, "A") {
+	if got := h.detailText(); !strings.Contains(got, "Q♠") || !strings.Contains(got, "Q♣") || strings.Contains(got, "A♥") || strings.Contains(got, "K♦") {
 		t.Fatalf("expected current hand detail to remain after stale error, got %q", got)
 	}
 }
@@ -206,7 +206,7 @@ func TestHandHistoryRefreshRestoreKeepsMatchingDetail(t *testing.T) {
 	if got := h.app.historyState.SelectedHandKey; got != handDetailSelectionKey("hand-1") {
 		t.Fatalf("unexpected selected hand key after refresh restore: %q", got)
 	}
-	if got := h.detailText(); strings.Contains(got, "stale detail") || !strings.Contains(got, "T") || strings.Contains(got, "A") {
+	if got := h.detailText(); strings.Contains(got, "stale detail") || !strings.Contains(got, "T♣") || !strings.Contains(got, "T♦") || strings.Contains(got, "A♥") || strings.Contains(got, "K♦") {
 		t.Fatalf("expected refreshed detail to converge to hand-1, got %q", got)
 	}
 	if got := h.fake.requestOrder(); len(got) != 2 || got[0] != "hand-1" || got[1] != "hand-1" {
