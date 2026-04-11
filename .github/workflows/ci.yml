@@ -104,7 +104,9 @@ jobs:
             gcc
 
       - name: Run hand-history UI regression suite
-        run: mise run test-ui
+        env:
+          UI_FLAKE_COUNT: "10"
+        run: mise run test-ui-ci
 
   # ─────────────────────────────────────────────────────────────
   # Build (depends on verify only)
