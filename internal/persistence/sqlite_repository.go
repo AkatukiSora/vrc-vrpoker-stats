@@ -307,12 +307,16 @@ func insertHandChildrenTx(ctx context.Context, tx *sql.Tx, uid string, h *parser
 		}
 
 		for ai, act := range pi.Actions {
+			actionIndex := act.Sequence
+			if actionIndex == 0 {
+				actionIndex = ai
+			} // legacy/manual hands
 			if _, err := tx.ExecContext(ctx, `INSERT INTO hand_actions(
 				hand_uid, seat_id, action_index, timestamp, street, action, amount
 			) VALUES(?, ?, ?, ?, ?, ?, ?)`,
 				uid,
 				seat,
-				ai,
+				actionIndex,
 				act.Timestamp.UTC().Format(time.RFC3339Nano),
 				int(act.Street),
 				int(act.Action),
@@ -530,7 +534,7 @@ func (r *SQLiteRepository) loadHandChildrenChunk(ctx context.Context, uids []str
 	// Actions
 	actionRows, err := r.db.QueryContext(ctx,
 		`SELECT hand_uid, seat_id, action_index, timestamp, street, action, amount FROM hand_actions
-		 WHERE hand_uid IN `+in+` ORDER BY hand_uid ASC, seat_id ASC, action_index ASC`, args...)
+		 WHERE hand_uid IN `+in+` ORDER BY hand_uid ASC, timestamp ASC, action_index ASC, seat_id ASC`, args...)
 	if err != nil {
 		return err
 	}
@@ -552,6 +556,7 @@ func (r *SQLiteRepository) loadHandChildrenChunk(ctx context.Context, uids []str
 					Street:    parser.Street(street),
 					Action:    parser.ActionType(action),
 					Amount:    amount,
+					Sequence:  idx,
 				})
 			}
 		}

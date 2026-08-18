@@ -150,6 +150,10 @@ type PlayerAction struct {
 	Street    Street
 	Action    ActionType
 	Amount    int
+	// Sequence is the order in which the event appeared in the source log.
+	// Timestamps only have second precision, so they cannot preserve a betting
+	// round by themselves.
+	Sequence int
 }
 
 // PlayerHandInfo holds per-player data within a hand

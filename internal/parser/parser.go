@@ -68,6 +68,7 @@ type Parser struct {
 	pendingLocalCards []Card
 	pendingLocalSeat  int
 	lastBlindSeat     int
+	actionSequence    int
 
 	// Pre-flop action sequence for 3bet/fold-to-3bet detection
 	pfActions []pfAction
@@ -223,7 +224,7 @@ func (p *Parser) processPokerEvent(ts time.Time, msg string) error {
 		pi := p.currentHand.Players[seat]
 		pi.Actions = append(pi.Actions, PlayerAction{
 			Timestamp: ts, PlayerID: seat,
-			Street: StreetPreFlop, Action: ActionBlindSB, Amount: amount,
+			Street: StreetPreFlop, Action: ActionBlindSB, Amount: amount, Sequence: p.nextActionSequence(),
 		})
 		p.streetBets[seat] = amount
 		if amount > p.streetBetAmount {
@@ -243,7 +244,7 @@ func (p *Parser) processPokerEvent(ts time.Time, msg string) error {
 		pi := p.currentHand.Players[seat]
 		pi.Actions = append(pi.Actions, PlayerAction{
 			Timestamp: ts, PlayerID: seat,
-			Street: StreetPreFlop, Action: ActionBlindBB, Amount: amount,
+			Street: StreetPreFlop, Action: ActionBlindBB, Amount: amount, Sequence: p.nextActionSequence(),
 		})
 		p.streetBets[seat] = amount
 		if amount > p.streetBetAmount {
@@ -309,7 +310,7 @@ func (p *Parser) processPokerEvent(ts time.Time, msg string) error {
 		pi := p.currentHand.Players[seat]
 		pi.Actions = append(pi.Actions, PlayerAction{
 			Timestamp: ts, PlayerID: seat,
-			Street: p.currentStreet, Action: ActionFold, Amount: 0,
+			Street: p.currentStreet, Action: ActionFold, Amount: 0, Sequence: p.nextActionSequence(),
 		})
 		if p.currentStreet == StreetPreFlop {
 			pi.FoldedPF = true
@@ -334,7 +335,7 @@ func (p *Parser) processPokerEvent(ts time.Time, msg string) error {
 		pi := p.currentHand.Players[seat]
 		pi.Actions = append(pi.Actions, PlayerAction{
 			Timestamp: ts, PlayerID: seat,
-			Street: p.currentStreet, Action: action, Amount: amount,
+			Street: p.currentStreet, Action: action, Amount: amount, Sequence: p.nextActionSequence(),
 		})
 
 		p.streetBets[seat] = amount
@@ -505,6 +506,7 @@ func (p *Parser) startNewHand(ts time.Time) {
 	p.pendingWinners = nil
 	p.pendingLocalCards = nil
 	p.lastBlindSeat = -1
+	p.actionSequence = 0
 }
 
 func (p *Parser) finalizeCurrentHand() {
@@ -561,10 +563,7 @@ func (p *Parser) finalizeCurrentHand() {
 	if h.ActiveSeatSet != nil {
 		h.ActiveSeatSet = nil
 	}
-	if h.SBSeat < 0 || h.BBSeat < 0 {
-		p.inferBlindsFromPreflop(h)
-	}
-	p.assignPositions(h)
+	p.normalizeHand(h)
 	p.calculatePreflopStats(h)
 
 	h.EndTime = p.lastTimestamp
@@ -581,6 +580,11 @@ func (p *Parser) finalizeCurrentHand() {
 	p.currentHand = nil
 	p.pendingLocalCards = nil
 	p.pendingLocalSeat = -1
+}
+
+func (p *Parser) nextActionSequence() int {
+	p.actionSequence++
+	return p.actionSequence
 }
 
 func ParseReader(r io.Reader) (*ParseResult, error) {

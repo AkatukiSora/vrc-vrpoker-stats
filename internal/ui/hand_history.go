@@ -387,13 +387,34 @@ func streetActions(h *parser.Hand, street parser.Street) []seatAction {
 			}
 		}
 	}
+	useSequence := hasCompleteTimelineSequence(out)
 	sort.Slice(out, func(i, j int) bool {
+		if useSequence {
+			return out[i].act.Sequence < out[j].act.Sequence
+		}
 		if out[i].act.Timestamp.Equal(out[j].act.Timestamp) {
 			return out[i].seat < out[j].seat
 		}
 		return out[i].act.Timestamp.Before(out[j].act.Timestamp)
 	})
 	return out
+}
+
+func hasCompleteTimelineSequence(actions []seatAction) bool {
+	if len(actions) == 0 {
+		return false
+	}
+	seen := make(map[int]struct{}, len(actions))
+	for _, action := range actions {
+		if action.act.Sequence <= 0 {
+			return false
+		}
+		if _, duplicate := seen[action.act.Sequence]; duplicate {
+			return false
+		}
+		seen[action.act.Sequence] = struct{}{}
+	}
+	return true
 }
 
 func actionLineColor(sa seatAction, localSeat, openRaiser int) color.Color {
