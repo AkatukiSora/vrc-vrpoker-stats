@@ -38,6 +38,9 @@ func LastPreflopAggressorSeat(h *Hand) int {
 	}
 
 	sort.Slice(actions, func(i, j int) bool {
+		if actions[i].act.Sequence != 0 && actions[j].act.Sequence != 0 && actions[i].act.Sequence != actions[j].act.Sequence {
+			return actions[i].act.Sequence < actions[j].act.Sequence
+		}
 		if actions[i].act.Timestamp.Equal(actions[j].act.Timestamp) {
 			if actions[i].act.Amount != actions[j].act.Amount {
 				return actions[i].act.Amount < actions[j].act.Amount
