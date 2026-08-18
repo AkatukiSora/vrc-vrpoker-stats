@@ -232,6 +232,7 @@
   "hand_history.detail.error": "ハンド詳細の読み込みに失敗しました。",
   "hand_history.export.button": "PHHをエクスポート",
   "hand_history.export.error": "ハンドをエクスポートできませんでした: {{.Error}}",
+  "hand_history.export.cancelled": "ハンドのエクスポートをキャンセルしました。",
   "hand_history.export.success": "ハンドをエクスポートしました: {{.Path}}",
 
   "hand_range.samples": "サンプル数: {{.N}}",

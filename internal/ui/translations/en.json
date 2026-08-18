@@ -232,6 +232,7 @@
   "hand_history.detail.error": "Failed to load hand details.",
   "hand_history.export.button": "Export PHH",
   "hand_history.export.error": "Could not export hand: {{.Error}}",
+  "hand_history.export.cancelled": "Hand export cancelled.",
   "hand_history.export.success": "Hand exported: {{.Path}}",
 
   "hand_range.samples": "Samples: {{.N}}",

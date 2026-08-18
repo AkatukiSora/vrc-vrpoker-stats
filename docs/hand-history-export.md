@@ -12,3 +12,7 @@ The application exports one selected hand as [Poker Hand History (PHH)](https://
 - Actions are sorted by their parser timestamps within each street. Blinds are represented by PHH's blind field; board cards are inserted at the appropriate street boundary.
 - The parser stores timestamps with second precision, so actions sharing exactly the same timestamp have a deterministic seat-number tie-breaker. The source log does not retain a stronger cross-player ordering signal after persistence.
 - Exports require at least two detected players plus valid SB and BB posts. Invalid hands fail with an error instead of generating a file that claims unsupported information. PHH itself permits a hand to end before a terminal state, so otherwise valid partial hands can still be exported.
+
+## UI validation
+
+The Fyne interaction suite uses `fyne.io/fyne/v2/test` to tap the real export button in a headless canvas. It verifies the picker invocation and default filename, successful file write and visible success feedback, plus cancellation, write failure, and serializer validation feedback through the dialog-independent export flow. Native OS file-picker rendering is not exercised in CI because it requires a desktop display and platform portal/GTK integration; the production adapter is intentionally limited to opening that picker and passing its writer to the tested flow.

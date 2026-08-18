@@ -13,7 +13,6 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -747,28 +746,7 @@ func (a *App) exportHandPHH(uid string) {
 	if uid == "" || a.win == nil {
 		return
 	}
-	save := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
-		if err != nil || writer == nil {
-			return
-		}
-		go func() {
-			data, exportErr := a.service.ExportHandPHH(a.ctx, uid)
-			if exportErr == nil {
-				_, exportErr = writer.Write(data)
-			}
-			closeErr := writer.Close()
-			if exportErr == nil {
-				exportErr = closeErr
-			}
-			if exportErr != nil {
-				a.doSetStatus(lang.X("hand_history.export.error", "Could not export hand: {{.Error}}", map[string]any{"Error": exportErr}))
-				return
-			}
-			a.doSetStatus(lang.X("hand_history.export.success", "Hand exported: {{.Path}}", map[string]any{"Path": writer.URI().Name()}))
-		}()
-	}, a.win)
-	save.SetFileName("vrpoker-hand-" + uid + ".phh")
-	save.Show()
+	newHandExportFlow(a.ctx, a.service, nativeHandExportDialog{window: a.win}, a.doSetStatus).begin(uid)
 }
 
 func (a *App) buildHandHistoryFilter() persistence.HandFilter {

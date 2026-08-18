@@ -511,6 +511,8 @@ type fakeHandHistoryAppService struct {
 	detailCalls  chan string
 	requestLog   []string
 	blockedHands map[string]*blockedHandResult
+	exportData   []byte
+	exportErr    error
 }
 
 type blockedHandResult struct {
@@ -642,7 +644,9 @@ func (f *fakeHandHistoryAppService) GetHandByUID(_ context.Context, uid string) 
 }
 
 func (f *fakeHandHistoryAppService) ExportHandPHH(context.Context, string) ([]byte, error) {
-	return nil, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]byte(nil), f.exportData...), f.exportErr
 }
 
 func (f *fakeHandHistoryAppService) NextOffset(context.Context, string) (int64, error) {
