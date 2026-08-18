@@ -29,8 +29,8 @@ mise run deps-linux
 - 実行: `mise run run`
 - Lint: `mise run lint`
 - テスト（高速）: `mise run test`
-- テスト（広め）: `mise run test-all`
-- Parser テストのみ: `mise run test-parser`
+- UI 回帰テスト: `mise run test-ui`
+- CI 相当の UI 回帰テスト: `mise run test-ui-ci`
 - モジュール整理: `mise run tidy`
 - i18n チェック: `mise run check-i18n`
 - CI 相当: `mise run ci`
@@ -49,7 +49,7 @@ mise run deps-linux
 ## Pull Request の進め方
 
 1. 変更を小さく分け、目的単位でコミットする
-2. 事前に `mise run ci`（最低でも `lint` + `test`）を通す
+2. 事前に `mise run ci` を実行し、UI 変更時は `mise run test-ui-ci` と `mise run check-i18n` も通す
 3. PR には「何を変えたか」ではなく「なぜ変えたか」を短く記載する
 
 ## 参考ドキュメント
