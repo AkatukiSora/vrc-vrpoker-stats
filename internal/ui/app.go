@@ -566,7 +566,7 @@ func (a *App) doUpdateStats() {
 	}
 	defer a.updateMu.Unlock()
 
-	s, localSeat, err := a.service.Stats(a.ctx, persistence.HandFilter{})
+	s, localSeat, err := a.service.Stats(a.ctx, a.currentAggregationFilter())
 	if err != nil {
 		slog.Error("stats failed", "error", err)
 		a.doSetStatus(lang.X("app.error.stats", "Stats error: {{.Error}}", map[string]any{"Error": err}))
@@ -592,6 +592,63 @@ func (a *App) doUpdateStats() {
 	})
 }
 
+// currentAggregationFilter maps the active tab's committed UI selection to a
+// repository-neutral aggregation request. Draft entry text is intentionally not
+// represented in TabFilterState, so it cannot affect stats while being typed.
+func (a *App) currentAggregationFilter() persistence.HandFilter {
+	var state *TabFilterState
+	switch a.currentTab {
+	case tabOverview:
+		if a.overviewView != nil {
+			state = &a.overviewView.filter
+		}
+	case tabPositionStats:
+		if a.positionView != nil {
+			state = &a.positionView.filter
+		}
+	case tabHandRange:
+		if a.handRangeView != nil {
+			state = &a.handRangeView.filter
+		}
+	}
+	if state == nil {
+		return persistence.HandFilter{}
+	}
+	return aggregationFilter(*state, time.Now())
+}
+
+func aggregationFilter(state TabFilterState, now time.Time) persistence.HandFilter {
+	filter := persistence.HandFilter{}
+	switch state.Mode {
+	case FilterModeTrend:
+		// Trend uses its configured rolling hand window. A positive default is
+		// supplied by each tab, so selecting Trend never falls through to all-time.
+		filter.LastN = state.NHands
+	case FilterModeLastNDays:
+		if state.NDays > 0 {
+			from := now.AddDate(0, 0, -state.NDays)
+			filter.FromTime = &from
+		}
+	case FilterModeLastNMonths:
+		if state.NMonths > 0 {
+			from := now.AddDate(0, -state.NMonths, 0)
+			filter.FromTime = &from
+		}
+	case FilterModeLastNHands:
+		filter.LastN = state.NHands
+	case FilterModeCustom:
+		if !state.From.IsZero() {
+			from := state.From
+			filter.FromTime = &from
+		}
+		if !state.To.IsZero() {
+			to := state.To.AddDate(0, 0, 1).Add(-time.Nanosecond)
+			filter.ToTime = &to
+		}
+	}
+	return filter
+}
+
 // doRefreshCurrentTab rebuilds the content for the currently selected tab.
 // MUST be called from the Fyne main thread (or wrapped in fyne.Do).
 func (a *App) doRefreshCurrentTab() {
@@ -610,18 +667,21 @@ func (a *App) doRefreshCurrentTab() {
 	case tabOverview:
 		if a.overviewView == nil {
 			a.overviewView = newOverviewTabView(a.win, a.metricState)
+			a.overviewView.onFilterChange = a.doUpdateStats
 		}
 		a.overviewView.Update(lastStats, localSeat)
 		obj = a.overviewView.CanvasObject()
 	case tabPositionStats:
 		if a.positionView == nil {
 			a.positionView = newPositionStatsTabView(a.metricState)
+			a.positionView.onFilterChange = a.doUpdateStats
 		}
 		a.positionView.Update(lastStats, localSeat)
 		obj = a.positionView.CanvasObject()
 	case tabHandRange:
 		if a.handRangeView == nil {
 			a.handRangeView = newHandRangeTabView(a.win, a.rangeState)
+			a.handRangeView.onFilterChange = a.doUpdateStats
 		}
 		a.handRangeView.Update(lastStats, localSeat)
 		obj = a.handRangeView.CanvasObject()

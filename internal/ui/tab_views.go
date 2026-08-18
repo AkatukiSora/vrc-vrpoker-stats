@@ -143,21 +143,20 @@ func replaceViewContentPreservingLayout(root *fyne.Container, next fyne.CanvasOb
 
 type overviewTabView struct {
 	tabRoot
-	win        fyne.Window
-	visibility *MetricVisibilityState
-	filter     TabFilterState
-	lastStats  *stats.Stats
-	localSeat  int
+	win            fyne.Window
+	visibility     *MetricVisibilityState
+	filter         TabFilterState
+	lastStats      *stats.Stats
+	localSeat      int
+	onFilterChange func()
 }
 
-func applyFilterLayout(root *fyne.Container, filter *TabFilterState, rebuild func(), buildContent func() fyne.CanvasObject) {
-	if root == nil || filter == nil || rebuild == nil || buildContent == nil {
+func applyFilterLayout(root *fyne.Container, filter *TabFilterState, onChange func(), buildContent func() fyne.CanvasObject) {
+	if root == nil || filter == nil || onChange == nil || buildContent == nil {
 		return
 	}
 	// trendN=-1 since filtering is now done at the service layer
-	filterBar := buildFilterBar(filter, -1, func() {
-		rebuild()
-	})
+	filterBar := buildFilterBar(filter, -1, onChange)
 	inner := container.NewBorder(filterBar, nil, nil, nil, buildContent())
 	replaceViewContentPreservingLayout(root, inner)
 }
@@ -185,17 +184,18 @@ func (v *overviewTabView) rebuild() {
 		replaceViewContentPreservingLayout(v.root, container.NewCenter(loadingLabel))
 		return
 	}
-	applyFilterLayout(v.root, &v.filter, v.rebuild, func() fyne.CanvasObject {
+	applyFilterLayout(v.root, &v.filter, v.onFilterChange, func() fyne.CanvasObject {
 		return NewOverviewTab(s, v.visibility, v.win)
 	})
 }
 
 type positionStatsTabView struct {
 	tabRoot
-	visibility *MetricVisibilityState
-	filter     TabFilterState
-	lastStats  *stats.Stats
-	localSeat  int
+	visibility     *MetricVisibilityState
+	filter         TabFilterState
+	lastStats      *stats.Stats
+	localSeat      int
+	onFilterChange func()
 }
 
 func newPositionStatsTabView(visibility *MetricVisibilityState) *positionStatsTabView {
@@ -220,18 +220,19 @@ func (v *positionStatsTabView) rebuild() {
 		replaceViewContentPreservingLayout(v.root, container.NewCenter(loadingLabel))
 		return
 	}
-	applyFilterLayout(v.root, &v.filter, v.rebuild, func() fyne.CanvasObject {
+	applyFilterLayout(v.root, &v.filter, v.onFilterChange, func() fyne.CanvasObject {
 		return NewPositionStatsTab(s, v.visibility)
 	})
 }
 
 type handRangeTabView struct {
 	tabRoot
-	win       fyne.Window
-	state     *HandRangeViewState
-	filter    TabFilterState
-	lastStats *stats.Stats
-	localSeat int
+	win            fyne.Window
+	state          *HandRangeViewState
+	filter         TabFilterState
+	lastStats      *stats.Stats
+	localSeat      int
+	onFilterChange func()
 }
 
 func newHandRangeTabView(win fyne.Window, state *HandRangeViewState) *handRangeTabView {
@@ -257,7 +258,7 @@ func (v *handRangeTabView) rebuild() {
 		replaceViewContentPreservingLayout(v.root, container.NewCenter(loadingLabel))
 		return
 	}
-	applyFilterLayout(v.root, &v.filter, v.rebuild, func() fyne.CanvasObject {
+	applyFilterLayout(v.root, &v.filter, v.onFilterChange, func() fyne.CanvasObject {
 		return NewHandRangeTab(s, v.win, v.state)
 	})
 }

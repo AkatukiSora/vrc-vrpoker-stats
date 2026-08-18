@@ -278,6 +278,8 @@
   "filter.custom.from": "開始:",
   "filter.custom.to": "終了:",
   "filter.custom.date_hint": "YYYY-MM-DD",
+  "filter.custom.date_invalid": "完全な日付を入力してください (YYYY-MM-DD)。",
+  "filter.number_invalid": "正の整数を入力してください。",
 
   "filter.trend.insufficient": "トレンド: 全{{.N}}ハンド (データ不足)",
   "filter.showing": "{{.N}}ハンド",

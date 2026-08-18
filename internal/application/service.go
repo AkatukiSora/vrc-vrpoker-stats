@@ -634,6 +634,18 @@ func (s *Service) Stats(ctx context.Context, filter persistence.HandFilter) (*st
 	localSeat := s.localSeat
 	s.mu.RUnlock()
 
+	filter.OnlyComplete = true
+	if filter.LastN > 0 {
+		hands, err := s.repo.ListHands(ctx, filter)
+		if err != nil {
+			return nil, localSeat, err
+		}
+		if filter.LastN < len(hands) {
+			hands = hands[len(hands)-filter.LastN:]
+		}
+		return stats.NewCalculator().Calculate(hands, localSeat), localSeat, nil
+	}
+
 	if filter.FromTime == nil && filter.ToTime == nil {
 		// AllTime mode — use IncrementalCalculator.
 		s.incMu.Lock()
@@ -689,7 +701,6 @@ func (s *Service) Stats(ctx context.Context, filter persistence.HandFilter) (*st
 	}
 
 	// Cache miss: full compute.
-	filter.OnlyComplete = true
 	hands, err := s.repo.ListHands(ctx, filter)
 	if err != nil {
 		return nil, localSeat, err
