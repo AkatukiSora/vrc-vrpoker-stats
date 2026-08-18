@@ -326,10 +326,8 @@ type handHistoryHarness struct {
 func newHandHistoryHarness(t *testing.T) *handHistoryHarness {
 	t.Helper()
 
-	fyneApp := test.NewTempApp(t)
-	fyneApp.Settings().SetTheme(newPokerTheme())
 	root := container.NewStack()
-	win := test.NewTempWindow(t, root)
+	fyneApp, win := newUITestWindow(t, root)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	fake := newFakeHandHistoryAppService()
@@ -440,7 +438,7 @@ func collectTappablesFromObject(obj fyne.CanvasObject) []fyne.CanvasObject {
 }
 
 func (h *handHistoryHarness) flushUI() {
-	fyne.DoAndWait(func() {})
+	flushUI()
 }
 
 func (h *handHistoryHarness) waitForDetailText(t *testing.T, want string) {

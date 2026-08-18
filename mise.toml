@@ -95,12 +95,12 @@ description = "Run unit tests (parser/stats/watcher fast suite)"
 run = 'go test -v ./internal/parser/... ./internal/stats/... ./internal/watcher/...'
 
 [tasks.test-ui]
-description = "Run hand-history UI regression suite"
-run = "go test -tags \"$BUILD_TAGS\" -run 'TestHand.*' ./internal/ui/..."
+description = "Run Fyne test-driver UI regression suite (interactions + renderer checks)"
+run = "go test -tags \"$BUILD_TAGS\" ./internal/ui/..."
 
 [tasks.test-ui-flake]
-description = "Run hand-history UI regression flake loop"
-run = "go test -tags \"$BUILD_TAGS\" -run 'TestHand.*' -count=${UI_FLAKE_COUNT:-20} ./internal/ui/..."
+description = "Run Fyne test-driver UI regression flake loop"
+run = "go test -tags \"$BUILD_TAGS\" -count=${UI_FLAKE_COUNT:-20} ./internal/ui/..."
 
 [tasks.test-ui-ci]
 description = "Run CI-like UI checks with locale + flake loop"
