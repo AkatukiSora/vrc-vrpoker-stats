@@ -11,7 +11,14 @@ func (p *Parser) normalizeHand(h *Hand) {
 	}
 	sbAmount, bbAmount := p.blindAmounts(h)
 	p.inferBlindsFromPreflop(h)
-	p.assignPositions(h)
+	if !hasCompletePreflopRotation(h) {
+		for _, pi := range h.Players {
+			pi.Position = PosUnknown
+		}
+		h.addAnomaly("PREFLOP_ROTATION_INCOMPLETE", "warn", "not every observed seat made a non-blind preflop decision")
+	} else {
+		p.assignPositions(h)
+	}
 	if h.SBSeat < 0 || h.BBSeat < 0 {
 		h.addAnomaly("BLIND_SEATS_UNKNOWN", "warn", "missing explicit or corroborated blind seat")
 	}
@@ -21,6 +28,22 @@ func (p *Parser) normalizeHand(h *Hand) {
 	if h.BBSeat >= 0 && bbAmount <= 0 {
 		h.addAnomaly("BIG_BLIND_AMOUNT_UNKNOWN", "warn", "big blind seat is known but its posted amount was not observed")
 	}
+}
+
+func hasCompletePreflopRotation(h *Hand) bool {
+	if h == nil || len(h.ActiveSeats) < 2 {
+		return false
+	}
+	seen := make(map[int]bool, len(h.ActiveSeats))
+	for seat, pi := range h.Players {
+		for _, a := range pi.Actions {
+			if a.Street == StreetPreFlop && a.Action != ActionBlindSB && a.Action != ActionBlindBB {
+				seen[seat] = true
+				break
+			}
+		}
+	}
+	return len(seen) == len(h.ActiveSeats)
 }
 
 func (p *Parser) blindAmounts(h *Hand) (int, int) {

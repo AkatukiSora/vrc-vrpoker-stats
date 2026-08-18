@@ -31,6 +31,9 @@ func preflopActionSequence(h *parser.Hand) []seqAction {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
+		if out[i].act.Sequence != 0 && out[j].act.Sequence != 0 && out[i].act.Sequence != out[j].act.Sequence {
+			return out[i].act.Sequence < out[j].act.Sequence
+		}
 		if out[i].act.Timestamp.Equal(out[j].act.Timestamp) {
 			return out[i].seat < out[j].seat
 		}

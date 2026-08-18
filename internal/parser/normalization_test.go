@@ -1,6 +1,18 @@
 package parser
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+const truncatedBlindOnlyLog = `
+2026.08.18 12:00:00 Debug      -  [Table]: Preparing for New Game:
+2026.08.18 12:00:01 Debug      -  [Seat]: Player 0 SB BET IN = 10
+2026.08.18 12:00:01 Debug      -  [Seat]: Player 1 BB BET IN = 20
+2026.08.18 12:00:02 Debug      -  [Table]: New Community Card: Ah
+2026.08.18 12:00:02 Debug      -  [Table]: New Community Card: Kd
+2026.08.18 12:00:02 Debug      -  [Table]: New Community Card: Qc
+`
 
 func normalizedHand(seats ...int) *Hand {
 	players := make(map[int]*PlayerHandInfo, len(seats))
@@ -58,7 +70,7 @@ func TestNormalizeHandBlindAndPositionEvidence(t *testing.T) {
 		},
 		{
 			name: "seat change topology is not fabricated", seats: []int{0, 2, 5}, sb: 0, bb: 5,
-			actions: []pfAction{{0, ActionBlindSB, 10}, {5, ActionBlindBB, 20}, {2, ActionFold, 0}}, wantSB: 0, wantBB: 5, wantAnomaly: "BLIND_SEAT_ORDER_AMBIGUOUS",
+			actions: []pfAction{{0, ActionBlindSB, 10}, {5, ActionBlindBB, 20}, {2, ActionFold, 0}, {0, ActionFold, 0}, {5, ActionCheck, 0}}, wantSB: 0, wantBB: 5, wantAnomaly: "BLIND_SEAT_ORDER_AMBIGUOUS",
 		},
 	}
 	for _, tt := range tests {
@@ -96,5 +108,22 @@ func TestNormalizeHandDoesNotUseFirstActionToInventBothBlinds(t *testing.T) {
 	}
 	if h.Players[2].Position != PosUnknown {
 		t.Fatalf("invented position: %s", h.Players[2].Position)
+	}
+}
+
+func TestParsePartialBlindOnlyHandLeavesPositionsUnknown(t *testing.T) {
+	result, err := ParseReader(strings.NewReader(truncatedBlindOnlyLog))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(result.Hands) != 1 {
+		t.Fatalf("hands=%d want 1", len(result.Hands))
+	}
+	h := result.Hands[0]
+	if !anomalyCode(h, "PREFLOP_ROTATION_INCOMPLETE") || h.IsStatsEligible() {
+		t.Fatalf("partial hand must be anomalous and stats-ineligible: %#v", h.Anomalies)
+	}
+	if h.Players[0].Position != PosUnknown || h.Players[1].Position != PosUnknown {
+		t.Fatalf("partial hand fabricated positions: %s, %s", h.Players[0].Position, h.Players[1].Position)
 	}
 }
