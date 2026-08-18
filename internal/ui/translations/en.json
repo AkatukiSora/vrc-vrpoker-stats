@@ -278,6 +278,8 @@
   "filter.custom.from": "From:",
   "filter.custom.to": "To:",
   "filter.custom.date_hint": "YYYY-MM-DD",
+  "filter.custom.date_invalid": "Enter a complete date (YYYY-MM-DD).",
+  "filter.number_invalid": "Enter a positive whole number.",
 
   "filter.trend.insufficient": "Trend: all {{.N}} hands (data insufficient)",
   "filter.showing": "{{.N}} hands",

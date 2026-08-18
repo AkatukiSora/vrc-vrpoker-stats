@@ -14,8 +14,12 @@ import (
 )
 
 type HandFilter struct {
-	FromTime          *time.Time
-	ToTime            *time.Time
+	FromTime *time.Time
+	ToTime   *time.Time
+	// LastN limits aggregation to the most recent complete hands after the
+	// time bounds have been applied. Repositories deliberately ignore it;
+	// application.Service applies it after loading chronologically ordered hands.
+	LastN             int
 	OnlyComplete      bool
 	LocalSeat         *int
 	PocketCategoryIDs []int

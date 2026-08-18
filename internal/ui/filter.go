@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"log/slog"
 	"sort"
 	"strconv"
@@ -49,6 +50,18 @@ func newCommitEntry() *commitEntry {
 	e := &commitEntry{}
 	e.ExtendBaseWidget(e)
 	return e
+}
+
+func newPositiveIntCommitEntry() *commitEntry {
+	entry := newCommitEntry()
+	entry.Validator = func(s string) error {
+		value, err := strconv.Atoi(s)
+		if err != nil || value <= 0 {
+			return fmt.Errorf("%s", lang.X("filter.number_invalid", "Enter a positive whole number."))
+		}
+		return nil
+	}
+	return entry
 }
 
 // FocusLost fires onCommit when keyboard focus leaves the entry.
@@ -289,12 +302,14 @@ func buildFilterBar(state *TabFilterState, trendN int, onChange func()) fyne.Can
 		switch state.Mode {
 		case FilterModeLastNDays:
 			label := widget.NewLabel(lang.X("filter.last_n.days_label", "Days:"))
-			entry := newCommitEntry()
+			entry := newPositiveIntCommitEntry()
 			entry.SetText(strconv.Itoa(state.NDays))
 			commit := func(s string) {
 				v, err := strconv.Atoi(s)
 				if err != nil || v <= 0 {
-					entry.SetText(strconv.Itoa(state.NDays)) // reset to last valid
+					return
+				}
+				if v == state.NDays {
 					return
 				}
 				state.NDays = v
@@ -306,12 +321,14 @@ func buildFilterBar(state *TabFilterState, trendN int, onChange func()) fyne.Can
 			return []fyne.CanvasObject{label, container.NewGridWrap(fyne.NewSize(80, entry.MinSize().Height), entry)}
 		case FilterModeLastNMonths:
 			label := widget.NewLabel(lang.X("filter.last_n.months_label", "Months:"))
-			entry := newCommitEntry()
+			entry := newPositiveIntCommitEntry()
 			entry.SetText(strconv.Itoa(state.NMonths))
 			commit := func(s string) {
 				v, err := strconv.Atoi(s)
 				if err != nil || v <= 0 {
-					entry.SetText(strconv.Itoa(state.NMonths))
+					return
+				}
+				if v == state.NMonths {
 					return
 				}
 				state.NMonths = v
@@ -323,12 +340,14 @@ func buildFilterBar(state *TabFilterState, trendN int, onChange func()) fyne.Can
 			return []fyne.CanvasObject{label, container.NewGridWrap(fyne.NewSize(80, entry.MinSize().Height), entry)}
 		case FilterModeLastNHands:
 			label := widget.NewLabel(lang.X("filter.last_n.hands_label", "Hands:"))
-			entry := newCommitEntry()
+			entry := newPositiveIntCommitEntry()
 			entry.SetText(strconv.Itoa(state.NHands))
 			commit := func(s string) {
 				v, err := strconv.Atoi(s)
 				if err != nil || v <= 0 {
-					entry.SetText(strconv.Itoa(state.NHands))
+					return
+				}
+				if v == state.NHands {
 					return
 				}
 				state.NHands = v
@@ -397,6 +416,17 @@ func buildFilterBar(state *TabFilterState, trendN int, onChange func()) fyne.Can
 func newDateEntry(initial time.Time, onChange func(time.Time)) *commitEntry {
 	entry := newCommitEntry()
 	entry.SetPlaceHolder(lang.X("filter.custom.date_hint", "YYYY-MM-DD"))
+	entry.Validator = func(s string) error {
+		if s == "" {
+			return nil // An empty bound is valid and means unbounded.
+		}
+		for _, layout := range []string{"2006-01-02", "20060102"} {
+			if _, err := time.Parse(layout, s); err == nil {
+				return nil
+			}
+		}
+		return fmt.Errorf("%s", lang.X("filter.custom.date_invalid", "Enter a complete date (YYYY-MM-DD)."))
+	}
 
 	lastValid := initial
 	if !initial.IsZero() {
@@ -411,6 +441,9 @@ func newDateEntry(initial time.Time, onChange func(time.Time)) *commitEntry {
 		}
 		for _, layout := range []string{"2006-01-02", "20060102"} {
 			if t, err := time.Parse(layout, s); err == nil {
+				if t.Equal(lastValid) {
+					return
+				}
 				lastValid = t
 				committing = true
 				entry.SetText(t.Format("2006-01-02")) // normalize
@@ -419,14 +452,8 @@ func newDateEntry(initial time.Time, onChange func(time.Time)) *commitEntry {
 				return
 			}
 		}
-		// Invalid: reset to last valid
-		committing = true
-		if !lastValid.IsZero() {
-			entry.SetText(lastValid.Format("2006-01-02"))
-		} else {
-			entry.SetText("")
-		}
-		committing = false
+		// Keep invalid or incomplete drafts visible. They are marked by Validator
+		// and are never propagated to the active aggregation range.
 	}
 	entry.onCommit = commit
 	entry.OnSubmitted = commit

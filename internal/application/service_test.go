@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/persistence"
 )
 
@@ -42,6 +44,40 @@ func TestBootstrapImportAllLogsImportsEachFileOnce(t *testing.T) {
 	}
 	if len(hands) != 2 {
 		t.Fatalf("hand count = %d, want 2", len(hands))
+	}
+}
+
+func TestStatsAppliesLastNAfterTimeRange(t *testing.T) {
+	t.Parallel()
+
+	repo := persistence.NewMemoryRepository()
+	base := time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
+	hands := make([]persistence.PersistedHand, 0, 4)
+	for i := 0; i < 4; i++ {
+		hands = append(hands, persistence.PersistedHand{Hand: &parser.Hand{
+			HandUID:         fmt.Sprintf("hand-%d", i),
+			StartTime:       base.AddDate(0, 0, i),
+			LocalPlayerSeat: 0,
+			IsComplete:      true,
+			StatsEligible:   true,
+			Players: map[int]*parser.PlayerHandInfo{
+				0: {SeatID: 0},
+			},
+		}})
+	}
+	if _, err := repo.UpsertHands(context.Background(), hands); err != nil {
+		t.Fatalf("seed hands: %v", err)
+	}
+
+	svc := NewService(repo, nil)
+	svc.localSeat = 0
+	from := base.AddDate(0, 0, 1)
+	s, _, err := svc.Stats(context.Background(), persistence.HandFilter{FromTime: &from, LastN: 2})
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	if got, want := s.TotalHands, 2; got != want {
+		t.Fatalf("TotalHands = %d, want %d (the two newest hands within the time range)", got, want)
 	}
 }
 
