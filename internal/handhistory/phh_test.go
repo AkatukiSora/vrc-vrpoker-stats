@@ -1,6 +1,8 @@
 package handhistory
 
 import (
+	"archive/zip"
+	"bytes"
 	"strings"
 	"testing"
 	"time"
@@ -32,4 +34,32 @@ func TestSerializePHHRejectsUnexportableHand(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
+}
+
+func TestSerializePHHArchiveKeepsHandsAsSeparateDocuments(t *testing.T) {
+	hands := []*parser.Hand{testExportHand(1), testExportHand(2)}
+	data, count, err := SerializePHHArchive(hands)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("count = %d", count)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(archive.File), 2; got != want {
+		t.Fatalf("entries = %d", got)
+	}
+	if archive.File[0].Name != "hand-000001.phh" || archive.File[1].Name != "hand-000002.phh" {
+		t.Fatalf("unexpected archive names")
+	}
+}
+
+func testExportHand(seat int) *parser.Hand {
+	return &parser.Hand{SBSeat: seat, BBSeat: seat + 1, Players: map[int]*parser.PlayerHandInfo{
+		seat:     {SeatID: seat, Actions: []parser.PlayerAction{{Action: parser.ActionBlindSB, Amount: 5}}},
+		seat + 1: {SeatID: seat + 1, Actions: []parser.PlayerAction{{Action: parser.ActionBlindBB, Amount: 10}}},
+	}}
 }

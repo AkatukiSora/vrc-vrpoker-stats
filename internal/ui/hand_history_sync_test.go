@@ -504,15 +504,18 @@ func canvasObjectTexts(obj fyne.CanvasObject) []string {
 }
 
 type fakeHandHistoryAppService struct {
-	mu           sync.Mutex
-	summaries    []persistence.HandSummary
-	totalCount   int
-	listCalls    chan struct{}
-	detailCalls  chan string
-	requestLog   []string
-	blockedHands map[string]*blockedHandResult
-	exportData   []byte
-	exportErr    error
+	mu               sync.Mutex
+	summaries        []persistence.HandSummary
+	totalCount       int
+	listCalls        chan struct{}
+	detailCalls      chan string
+	requestLog       []string
+	blockedHands     map[string]*blockedHandResult
+	exportData       []byte
+	exportErr        error
+	exportRangeData  []byte
+	exportRangeCount int
+	exportRangeErr   error
 }
 
 type blockedHandResult struct {
@@ -647,6 +650,12 @@ func (f *fakeHandHistoryAppService) ExportHandPHH(context.Context, string) ([]by
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]byte(nil), f.exportData...), f.exportErr
+}
+
+func (f *fakeHandHistoryAppService) ExportHandsPHH(context.Context, persistence.HandFilter) ([]byte, int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]byte(nil), f.exportRangeData...), f.exportRangeCount, f.exportRangeErr
 }
 
 func (f *fakeHandHistoryAppService) NextOffset(context.Context, string) (int64, error) {

@@ -81,6 +81,35 @@ func TestStatsAppliesLastNAfterTimeRange(t *testing.T) {
 	}
 }
 
+func TestExportHandsPHHAppliesLastN(t *testing.T) {
+	repo := persistence.NewMemoryRepository()
+	base := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 3; i++ {
+		h := exportableTestHand(base.AddDate(0, 0, i))
+		h.HandUID = fmt.Sprintf("export-%d", i)
+		if _, err := repo.UpsertHands(context.Background(), []persistence.PersistedHand{{Hand: h}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, count, err := NewService(repo, nil).ExportHandsPHH(context.Background(), persistence.HandFilter{LastN: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("count = %d", count)
+	}
+	if len(data) < 4 || string(data[:2]) != "PK" {
+		t.Fatalf("expected ZIP output")
+	}
+}
+
+func exportableTestHand(start time.Time) *parser.Hand {
+	return &parser.Hand{StartTime: start, IsComplete: true, SBSeat: 0, BBSeat: 1, Players: map[int]*parser.PlayerHandInfo{
+		0: {SeatID: 0, Actions: []parser.PlayerAction{{Action: parser.ActionBlindSB, Amount: 5}}},
+		1: {SeatID: 1, Actions: []parser.PlayerAction{{Action: parser.ActionBlindBB, Amount: 10}}},
+	}}
+}
+
 func TestImportLinesSkipsStaleSource(t *testing.T) {
 	t.Parallel()
 

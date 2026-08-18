@@ -2,6 +2,8 @@
 package handhistory
 
 import (
+	"archive/zip"
+	"bytes"
 	"fmt"
 	"sort"
 	"strconv"
@@ -9,6 +11,35 @@ import (
 
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
 )
+
+// SerializePHHArchive returns a ZIP containing one valid PHH file per hand.
+func SerializePHHArchive(hands []*parser.Hand) ([]byte, int, error) {
+	if len(hands) == 0 {
+		return nil, 0, fmt.Errorf("serialize PHH archive: no hands")
+	}
+	var output bytes.Buffer
+	archive := zip.NewWriter(&output)
+	for i, hand := range hands {
+		data, err := SerializePHH(hand)
+		if err != nil {
+			_ = archive.Close()
+			return nil, 0, fmt.Errorf("serialize hand %d: %w", i+1, err)
+		}
+		entry, err := archive.Create(fmt.Sprintf("hand-%06d.phh", i+1))
+		if err != nil {
+			_ = archive.Close()
+			return nil, 0, fmt.Errorf("create archive entry: %w", err)
+		}
+		if _, err := entry.Write(data); err != nil {
+			_ = archive.Close()
+			return nil, 0, fmt.Errorf("write archive entry: %w", err)
+		}
+	}
+	if err := archive.Close(); err != nil {
+		return nil, 0, fmt.Errorf("finish PHH archive: %w", err)
+	}
+	return output.Bytes(), len(hands), nil
+}
 
 // SerializePHH returns a Poker Hand History (PHH) TOML document. PHH is an
 // open, tool-neutral interchange format; unknown cards and stacks are emitted

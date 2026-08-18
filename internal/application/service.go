@@ -31,6 +31,7 @@ type AppService interface {
 	// Returns nil, nil if not found.
 	GetHandByUID(ctx context.Context, uid string) (*parser.Hand, error)
 	ExportHandPHH(ctx context.Context, uid string) ([]byte, error)
+	ExportHandsPHH(ctx context.Context, filter persistence.HandFilter) ([]byte, int, error)
 	NextOffset(ctx context.Context, path string) (int64, error)
 	MarkLogFullyImported(ctx context.Context, path string)
 	Close() error
@@ -50,6 +51,24 @@ func (s *Service) ExportHandPHH(ctx context.Context, uid string) ([]byte, error)
 		return nil, fmt.Errorf("serialize hand %q: %w", uid, err)
 	}
 	return data, nil
+}
+
+// ExportHandsPHH writes the selected hands into a deterministic ZIP archive of
+// individual PHH files. A ZIP keeps each PHH document valid TOML while letting
+// tools or users import a selected range in one operation.
+func (s *Service) ExportHandsPHH(ctx context.Context, filter persistence.HandFilter) ([]byte, int, error) {
+	filter.OnlyComplete = true
+	hands, err := s.repo.ListHands(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list hands for export: %w", err)
+	}
+	if filter.LastN > 0 && filter.LastN < len(hands) {
+		hands = hands[len(hands)-filter.LastN:]
+	}
+	if len(hands) == 0 {
+		return nil, 0, fmt.Errorf("no hands match the export range")
+	}
+	return handhistory.SerializePHHArchive(hands)
 }
 
 type LogFileLocator func() ([]string, error)

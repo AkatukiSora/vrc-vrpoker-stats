@@ -2,6 +2,8 @@
 
 The application exports one selected hand as [Poker Hand History (PHH)](https://github.com/uoftcprg/phh-std), a TOML-based open interchange format. The compatibility target is tools that implement PHH (including PokerKit-based workflows) and custom analysis scripts. This is deliberately not an imitation PokerStars history: the VRChat log has no verified player screen names, stacks, currency, table identifier, or poker-room identifier, all of which site-specific importers commonly need.
 
+For bulk export, the Hand History tab offers **Export range**. Choose all hands, the latest N hands, the last N days, or the last N months. The result is a ZIP with one PHH document per hand, rather than concatenated TOML, so every extracted file remains a valid PHH document.
+
 `internal/handhistory` owns PHH serialization. The UI only requests bytes through `application.AppService` and lets the user select the destination; it contains no poker conversion rules.
 
 ## Mapping and safety

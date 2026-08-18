@@ -21,7 +21,7 @@ func TestHandExportButtonInvokesSaveAndReportsSuccess(t *testing.T) {
 	dialog := &fakeHandExportDialog{writer: writer, name: "hand.phh"}
 	status := make(chan string, 1)
 	flow := newHandExportFlow(nil, service, dialog, func(message string) { status <- message })
-	view := newHandHistoryTabView(&HandHistoryViewState{}, nil, nil, flow.begin)
+	view := newHandHistoryTabView(&HandHistoryViewState{}, nil, nil, flow.begin, nil)
 	fyne.DoAndWait(func() {
 		view.UpdatePage([]persistence.HandSummary{{HandUID: "hand-1"}}, 0, 1)
 		view.list.Select(0)
@@ -70,6 +70,56 @@ func TestHandExportFlowReportsServiceValidationError(t *testing.T) {
 	flow.begin("partial")
 	if got := waitExportStatus(t, status); got != "Could not export hand: missing valid small and big blinds" {
 		t.Fatalf("validation status = %q", got)
+	}
+}
+
+func TestHandExportRangeFlowWritesArchiveAndMapsRange(t *testing.T) {
+	service := newFakeHandHistoryAppService()
+	service.exportRangeData = []byte("PK\x03\x04")
+	service.exportRangeCount = 25
+	writer := &exportTestWriter{}
+	dialog := &fakeHandExportDialog{writer: writer, name: "hands.zip"}
+	status := make(chan string, 1)
+	flow := newHandExportFlow(nil, service, dialog, func(message string) { status <- message })
+	filter, err := exportRangeFilter(exportRangeHands, 25, time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC))
+	if err != nil || filter.LastN != 25 {
+		t.Fatalf("hand range filter = %+v, err=%v", filter, err)
+	}
+	flow.beginRange(filter)
+	if got, want := dialog.defaultName, "vrpoker-hands.phh.zip"; got != want {
+		t.Fatalf("filename = %q", got)
+	}
+	if got := waitExportStatus(t, status); got != "Exported 25 hands: hands.zip" {
+		t.Fatalf("status = %q", got)
+	}
+	if got := writer.String(); got != "PK\x03\x04" {
+		t.Fatalf("archive = %q", got)
+	}
+}
+
+func TestHandHistoryRangeExportButtonInvokesRangeFlow(t *testing.T) {
+	invoked := make(chan struct{}, 1)
+	view := newHandHistoryTabView(&HandHistoryViewState{}, nil, nil, nil, func() { invoked <- struct{}{} })
+	fyne.DoAndWait(func() {
+		view.UpdatePage([]persistence.HandSummary{{HandUID: "hand-1"}}, 0, 1)
+		test.Tap(view.exportRangeButton)
+	})
+	select {
+	case <-invoked:
+	case <-time.After(time.Second):
+		t.Fatal("range export button did not invoke flow")
+	}
+}
+
+func TestExportRangeFilterSupportsPeriods(t *testing.T) {
+	now := time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)
+	days, err := exportRangeFilter(exportRangeDays, 7, now)
+	if err != nil || days.FromTime == nil || !days.FromTime.Equal(now.AddDate(0, 0, -7)) {
+		t.Fatalf("days = %+v, err=%v", days, err)
+	}
+	months, err := exportRangeFilter(exportRangeMonths, 2, now)
+	if err != nil || months.FromTime == nil || !months.FromTime.Equal(now.AddDate(0, -2, 0)) {
+		t.Fatalf("months = %+v, err=%v", months, err)
 	}
 }
 
