@@ -30,8 +30,9 @@ func preflopActionSequence(h *parser.Hand) []seqAction {
 			out = append(out, seqAction{seat: seat, act: a})
 		}
 	}
+	useSequence := hasCompleteActionSequence(out)
 	sort.Slice(out, func(i, j int) bool {
-		if out[i].act.Sequence != 0 && out[j].act.Sequence != 0 && out[i].act.Sequence != out[j].act.Sequence {
+		if useSequence {
 			return out[i].act.Sequence < out[j].act.Sequence
 		}
 		if out[i].act.Timestamp.Equal(out[j].act.Timestamp) {
@@ -40,6 +41,23 @@ func preflopActionSequence(h *parser.Hand) []seqAction {
 		return out[i].act.Timestamp.Before(out[j].act.Timestamp)
 	})
 	return out
+}
+
+func hasCompleteActionSequence(actions []seqAction) bool {
+	if len(actions) == 0 {
+		return false
+	}
+	seen := make(map[int]struct{}, len(actions))
+	for _, action := range actions {
+		if action.act.Sequence <= 0 {
+			return false
+		}
+		if _, duplicate := seen[action.act.Sequence]; duplicate {
+			return false
+		}
+		seen[action.act.Sequence] = struct{}{}
+	}
+	return true
 }
 
 // preflopHandContext holds per-hand preflop data computed once and reused

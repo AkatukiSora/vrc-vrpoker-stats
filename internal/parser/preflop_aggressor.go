@@ -37,8 +37,9 @@ func LastPreflopAggressorSeat(h *Hand) int {
 		return -1
 	}
 
+	useSequence := completePreflopSequence(actions)
 	sort.Slice(actions, func(i, j int) bool {
-		if actions[i].act.Sequence != 0 && actions[j].act.Sequence != 0 && actions[i].act.Sequence != actions[j].act.Sequence {
+		if useSequence {
 			return actions[i].act.Sequence < actions[j].act.Sequence
 		}
 		if actions[i].act.Timestamp.Equal(actions[j].act.Timestamp) {
@@ -51,6 +52,23 @@ func LastPreflopAggressorSeat(h *Hand) int {
 	})
 
 	return actions[len(actions)-1].seat
+}
+
+func completePreflopSequence(actions []preflopSeatAction) bool {
+	if len(actions) == 0 {
+		return false
+	}
+	seen := make(map[int]struct{}, len(actions))
+	for _, action := range actions {
+		if action.act.Sequence <= 0 {
+			return false
+		}
+		if _, duplicate := seen[action.act.Sequence]; duplicate {
+			return false
+		}
+		seen[action.act.Sequence] = struct{}{}
+	}
+	return true
 }
 
 func isPreflopAggressiveAction(action ActionType) bool {
