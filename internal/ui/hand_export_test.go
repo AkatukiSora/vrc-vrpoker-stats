@@ -89,7 +89,7 @@ func TestHandExportRangeFlowWritesArchiveAndMapsRange(t *testing.T) {
 	if got, want := dialog.defaultName, "vrpoker-hands.phh.zip"; got != want {
 		t.Fatalf("filename = %q", got)
 	}
-	if got := waitExportStatus(t, status); got != "Exported 25 hands: hands.zip" {
+	if got := waitExportStatus(t, status); got != "Exported 25 hands (0 skipped): hands.zip" {
 		t.Fatalf("status = %q", got)
 	}
 	if got := writer.String(); got != "PK\x03\x04" {

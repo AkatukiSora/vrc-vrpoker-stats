@@ -12,33 +12,47 @@ import (
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
 )
 
+// ArchiveResult describes the hands included and safely skipped from an archive.
+type ArchiveResult struct {
+	Exported int
+	Skipped  int
+}
+
 // SerializePHHArchive returns a ZIP containing one valid PHH file per hand.
-func SerializePHHArchive(hands []*parser.Hand) ([]byte, int, error) {
+// Hands missing required PHH data are skipped rather than preventing an entire
+// range export; no blind or stack values are invented.
+func SerializePHHArchive(hands []*parser.Hand) ([]byte, ArchiveResult, error) {
 	if len(hands) == 0 {
-		return nil, 0, fmt.Errorf("serialize PHH archive: no hands")
+		return nil, ArchiveResult{}, fmt.Errorf("serialize PHH archive: no hands")
 	}
 	var output bytes.Buffer
 	archive := zip.NewWriter(&output)
+	result := ArchiveResult{}
 	for i, hand := range hands {
 		data, err := SerializePHH(hand)
 		if err != nil {
-			_ = archive.Close()
-			return nil, 0, fmt.Errorf("serialize hand %d: %w", i+1, err)
+			result.Skipped++
+			continue
 		}
 		entry, err := archive.Create(fmt.Sprintf("hand-%06d.phh", i+1))
 		if err != nil {
 			_ = archive.Close()
-			return nil, 0, fmt.Errorf("create archive entry: %w", err)
+			return nil, result, fmt.Errorf("create archive entry: %w", err)
 		}
 		if _, err := entry.Write(data); err != nil {
 			_ = archive.Close()
-			return nil, 0, fmt.Errorf("write archive entry: %w", err)
+			return nil, result, fmt.Errorf("write archive entry: %w", err)
 		}
+		result.Exported++
+	}
+	if result.Exported == 0 {
+		_ = archive.Close()
+		return nil, result, fmt.Errorf("no hands in this range have valid small and big blinds")
 	}
 	if err := archive.Close(); err != nil {
-		return nil, 0, fmt.Errorf("finish PHH archive: %w", err)
+		return nil, result, fmt.Errorf("finish PHH archive: %w", err)
 	}
-	return output.Bytes(), len(hands), nil
+	return output.Bytes(), result, nil
 }
 
 // SerializePHH returns a Poker Hand History (PHH) TOML document. PHH is an

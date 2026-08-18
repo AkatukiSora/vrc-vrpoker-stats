@@ -38,12 +38,12 @@ func TestSerializePHHRejectsUnexportableHand(t *testing.T) {
 
 func TestSerializePHHArchiveKeepsHandsAsSeparateDocuments(t *testing.T) {
 	hands := []*parser.Hand{testExportHand(1), testExportHand(2)}
-	data, count, err := SerializePHHArchive(hands)
+	data, result, err := SerializePHHArchive(hands)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 2 {
-		t.Fatalf("count = %d", count)
+	if result.Exported != 2 || result.Skipped != 0 {
+		t.Fatalf("result = %+v", result)
 	}
 	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -54,6 +54,20 @@ func TestSerializePHHArchiveKeepsHandsAsSeparateDocuments(t *testing.T) {
 	}
 	if archive.File[0].Name != "hand-000001.phh" || archive.File[1].Name != "hand-000002.phh" {
 		t.Fatalf("unexpected archive names")
+	}
+}
+
+func TestSerializePHHArchiveSkipsHandsMissingBlinds(t *testing.T) {
+	data, result, err := SerializePHHArchive([]*parser.Hand{testExportHand(1), {Players: map[int]*parser.PlayerHandInfo{0: {SeatID: 0}, 1: {SeatID: 1}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Exported != 1 || result.Skipped != 1 {
+		t.Fatalf("result = %+v", result)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil || len(archive.File) != 1 {
+		t.Fatalf("archive = %v, entries=%d", err, len(archive.File))
 	}
 }
 

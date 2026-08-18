@@ -245,7 +245,7 @@
   "hand_history.export.range.months": "直近 N か月",
   "hand_history.export.range.confirm": "ZIP をエクスポート",
   "hand_history.export.range.cancel": "キャンセル",
-  "hand_history.export.range.success": "{{.Count}} ハンドをエクスポートしました: {{.Path}}",
+  "hand_history.export.range.success": "{{.Count}} ハンドをエクスポートしました（{{.Skipped}} 件スキップ）: {{.Path}}",
   "hand_history.export.range.invalid": "1 以上の件数を入力してください。",
 
   "hand_range.samples": "サンプル数: {{.N}}",

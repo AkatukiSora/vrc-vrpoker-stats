@@ -91,12 +91,15 @@ func TestExportHandsPHHAppliesLastN(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	data, count, err := NewService(repo, nil).ExportHandsPHH(context.Background(), persistence.HandFilter{LastN: 2})
+	data, count, skipped, err := NewService(repo, nil).ExportHandsPHH(context.Background(), persistence.HandFilter{LastN: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 2 {
 		t.Fatalf("count = %d", count)
+	}
+	if skipped != 0 {
+		t.Fatalf("skipped = %d", skipped)
 	}
 	if len(data) < 4 || string(data[:2]) != "PK" {
 		t.Fatalf("expected ZIP output")

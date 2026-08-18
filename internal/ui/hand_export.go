@@ -92,7 +92,7 @@ func (f handExportFlow) beginRange(filter persistence.HandFilter) {
 			return
 		}
 		go func() {
-			data, count, exportErr := f.service.ExportHandsPHH(f.ctx, filter)
+			data, count, skipped, exportErr := f.service.ExportHandsPHH(f.ctx, filter)
 			if exportErr == nil {
 				_, exportErr = writer.Write(data)
 			}
@@ -104,7 +104,7 @@ func (f handExportFlow) beginRange(filter persistence.HandFilter) {
 				f.reportError(exportErr)
 				return
 			}
-			f.reportMessage(lang.X("hand_history.export.range.success", "Exported {{.Count}} hands: {{.Path}}", map[string]any{"Count": count, "Path": name}))
+			f.reportMessage(lang.X("hand_history.export.range.success", "Exported {{.Count}} hands: {{.Path}}", map[string]any{"Count": count, "Skipped": skipped, "Path": name}))
 		}()
 	})
 }

@@ -4,6 +4,8 @@ The application exports one selected hand as [Poker Hand History (PHH)](https://
 
 For bulk export, the Hand History tab offers **Export range**. Choose all hands, the latest N hands, the last N days, or the last N months. The result is a ZIP with one PHH document per hand, rather than concatenated TOML, so every extracted file remains a valid PHH document.
 
+When a range includes a hand without reliable SB/BB posts, that hand is skipped and the completion message reports the skipped count. This keeps the remaining hand files importable without inventing required PHH values. If every selected hand lacks valid blinds, the export reports that no valid hands are available.
+
 `internal/handhistory` owns PHH serialization. The UI only requests bytes through `application.AppService` and lets the user select the destination; it contains no poker conversion rules.
 
 ## Mapping and safety

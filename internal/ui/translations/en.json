@@ -245,7 +245,7 @@
   "hand_history.export.range.months": "Last N months",
   "hand_history.export.range.confirm": "Export ZIP",
   "hand_history.export.range.cancel": "Cancel",
-  "hand_history.export.range.success": "Exported {{.Count}} hands: {{.Path}}",
+  "hand_history.export.range.success": "Exported {{.Count}} hands ({{.Skipped}} skipped): {{.Path}}",
   "hand_history.export.range.invalid": "Enter a positive amount.",
 
   "hand_range.samples": "Samples: {{.N}}",
