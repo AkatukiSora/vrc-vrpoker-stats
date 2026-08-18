@@ -233,10 +233,8 @@ type rangeCellTransitionFixture struct {
 func newRangeCellTransitionFixture(t *testing.T, cell *stats.HandRangeCell, pos parser.Position, selectedCombo string) *rangeCellTransitionFixture {
 	t.Helper()
 
-	fyneApp := test.NewTempApp(t)
-	fyneApp.Settings().SetTheme(newPokerTheme())
 	widget := newRangeCellWidget(cell, positionIndexForTest(t, pos), selectedCombo, nil)
-	win := test.NewTempWindow(t, widget)
+	_, win := newUITestWindow(t, widget)
 	fx := &rangeCellTransitionFixture{win: win, widget: widget}
 	fx.refresh(t)
 
