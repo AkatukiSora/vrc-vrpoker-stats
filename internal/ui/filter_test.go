@@ -1,8 +1,19 @@
 package ui
 
 import (
+	"context"
+	"sync"
 	"testing"
 	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
+
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/persistence"
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
 )
 
 func TestAggregationFilterMapsSelectionToExpectedBounds(t *testing.T) {
@@ -86,5 +97,196 @@ func TestDateEntryCommitsOnlyCompleteValidInput(t *testing.T) {
 	entry.onCommit(entry.Text)
 	if len(committed) != 1 {
 		t.Fatalf("duplicate commit triggered refresh: %v", committed)
+	}
+}
+
+func TestAggregationFilterWidgetsCommitOnlyValidInputAndRefreshDisplayedStats(t *testing.T) {
+	service := &aggregationInteractionService{fakeHandHistoryAppService: newFakeHandHistoryAppService()}
+	app := newAggregationInteractionApp(t, service)
+	app.doUpdateStats()
+	refreshAggregationApp(app)
+	assertLabelText(t, app.mainContent, "100") //i18n:ignore expected all-time hand count
+
+	selectWidget := findSelect(t, app.mainContent)
+	selectWidget.SetSelected(lang.X("filter.mode.last_n_hands_select", "Last N Hands"))
+	refreshAggregationApp(app)
+	assertLabelText(t, app.mainContent, "500") //i18n:ignore expected rendered hand count
+
+	selectWidget = findSelect(t, app.mainContent)
+	selectWidget.SetSelected(lang.X("filter.mode.custom", "Custom Range"))
+	refreshAggregationApp(app)
+
+	entries := findCommitEntries(app.mainContent)
+	if len(entries) != 2 {
+		t.Fatalf("custom filter entries = %d, want 2", len(entries))
+	}
+	fromEntry := entries[0]
+	fromEntry.FocusGained()
+	test.Type(fromEntry, "2026-08-") //i18n:ignore partial test input
+	fromEntry.FocusLost()
+	refreshAggregationApp(app)
+	if got := service.callCount(); got != 3 { // initial render + two selector changes
+		t.Fatalf("incomplete date triggered stats refreshes: calls=%d", got)
+	}
+	if got := fromEntry.Text; got != "2026-08-" {
+		t.Fatalf("incomplete date draft was discarded: %q", got)
+	}
+	assertLabelText(t, app.mainContent, "100") //i18n:ignore custom range remains unbounded
+
+	test.Type(fromEntry, "18") //i18n:ignore completes partial test input
+	fromEntry.OnSubmitted(fromEntry.Text)
+	refreshAggregationApp(app)
+	if got := service.callCount(); got != 4 {
+		t.Fatalf("complete date refresh calls=%d, want 4", got)
+	}
+	if filter := service.lastFilter(); filter.FromTime == nil || !filter.FromTime.Equal(time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("committed date filter = %+v", filter)
+	}
+	assertLabelText(t, app.mainContent, "7") //i18n:ignore expected date-filtered hand count
+
+	selectWidget = findSelect(t, app.mainContent)
+	selectWidget.SetSelected(lang.X("filter.mode.last_n_hands_select", "Last N Hands"))
+	refreshAggregationApp(app)
+	entry := findCommitEntries(app.mainContent)[0]
+	entry.SetText("")
+	entry.FocusGained()
+	test.Type(entry, "0") //i18n:ignore invalid test input
+	entry.FocusLost()
+	refreshAggregationApp(app)
+	if got := service.callCount(); got != 5 { // selector change only
+		t.Fatalf("invalid number triggered stats refreshes: calls=%d", got)
+	}
+	assertLabelText(t, app.mainContent, "500") //i18n:ignore last valid hand window remains active
+
+	entry.SetText("")
+	entry.FocusGained()
+	test.Type(entry, "20") //i18n:ignore valid test input
+	entry.OnSubmitted(entry.Text)
+	refreshAggregationApp(app)
+	if filter := service.lastFilter(); filter.LastN != 20 {
+		t.Fatalf("last-N filter = %+v, want LastN=20", filter)
+	}
+	assertLabelText(t, app.mainContent, "20") //i18n:ignore expected latest-N hand count
+}
+
+type aggregationInteractionService struct {
+	*fakeHandHistoryAppService
+	mu      sync.Mutex
+	filters []persistence.HandFilter
+}
+
+func (s *aggregationInteractionService) Stats(_ context.Context, filter persistence.HandFilter) (*stats.Stats, int, error) {
+	s.mu.Lock()
+	s.filters = append(s.filters, filter)
+	s.mu.Unlock()
+	count := 100
+	if filter.LastN > 0 {
+		count = filter.LastN
+	}
+	if filter.FromTime != nil {
+		count = 7
+	}
+	return &stats.Stats{TotalHands: count}, 0, nil
+}
+
+func (s *aggregationInteractionService) callCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.filters)
+}
+
+func (s *aggregationInteractionService) lastFilter() persistence.HandFilter {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.filters[len(s.filters)-1]
+}
+
+func newAggregationInteractionApp(t *testing.T, service *aggregationInteractionService) *App {
+	t.Helper()
+	root := container.NewMax()
+	win := test.NewWindow(root)
+	t.Cleanup(win.Close)
+	return &App{
+		ctx:         context.Background(),
+		service:     service,
+		win:         win,
+		mainContent: root,
+		metricState: NewMetricVisibilityState(),
+		rangeState:  &HandRangeViewState{},
+		currentTab:  tabOverview,
+	}
+}
+
+func flushFyne() { fyne.DoAndWait(func() {}) }
+
+func refreshAggregationApp(app *App) {
+	fyne.DoAndWait(app.doRefreshCurrentTab)
+}
+
+func findSelect(t *testing.T, root fyne.CanvasObject) *widget.Select {
+	t.Helper()
+	var found *widget.Select
+	walkCanvasObjects(root, func(object fyne.CanvasObject) {
+		if selectWidget, ok := object.(*widget.Select); ok {
+			found = selectWidget
+		}
+	})
+	if found == nil {
+		t.Fatal("filter selector not found")
+	}
+	return found
+}
+
+func findCommitEntries(root fyne.CanvasObject) []*commitEntry {
+	var entries []*commitEntry
+	walkCanvasObjects(root, func(object fyne.CanvasObject) {
+		if entry, ok := object.(*commitEntry); ok {
+			entries = append(entries, entry)
+		}
+	})
+	return entries
+}
+
+func assertLabelText(t *testing.T, root fyne.CanvasObject, want string) {
+	t.Helper()
+	for range 20 {
+		if canvasObjectHasText(root, want) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+		flushFyne()
+	}
+	t.Fatalf("displayed label %q not found", want)
+}
+
+func canvasObjectHasText(root fyne.CanvasObject, want string) bool {
+	found := false
+	walkCanvasObjects(root, func(object fyne.CanvasObject) {
+		if label, ok := object.(*widget.Label); ok && label.Text == want {
+			found = true
+		}
+		if richText, ok := object.(*widget.RichText); ok {
+			for _, segment := range richText.Segments {
+				if text, ok := segment.(*widget.TextSegment); ok && text.Text == want {
+					found = true
+				}
+			}
+		}
+	})
+	return found
+}
+
+func walkCanvasObjects(object fyne.CanvasObject, visit func(fyne.CanvasObject)) {
+	if object == nil {
+		return
+	}
+	visit(object)
+	if parent, ok := object.(*fyne.Container); ok {
+		for _, child := range parent.Objects {
+			walkCanvasObjects(child, visit)
+		}
+	}
+	if scroll, ok := object.(*container.Scroll); ok {
+		walkCanvasObjects(scroll.Content, visit)
 	}
 }
