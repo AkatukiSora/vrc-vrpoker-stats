@@ -18,6 +18,7 @@ func (p *Parser) Clone() *Parser {
 		lastTimestamp:         p.lastTimestamp,
 		pendingLocalSeat:      p.pendingLocalSeat,
 		lastBlindSeat:         p.lastBlindSeat,
+		actionSequence:        p.actionSequence,
 		pfActions:             append([]pfAction(nil), p.pfActions...),
 		currentWorldID:        p.currentWorldID,
 		currentWorldName:      p.currentWorldName,

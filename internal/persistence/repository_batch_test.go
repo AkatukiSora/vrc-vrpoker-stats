@@ -98,6 +98,34 @@ func TestSaveImportBatchParity(t *testing.T) {
 	}
 }
 
+func TestSQLiteRoundTripPreservesNormalizedActionOrder(t *testing.T) {
+	repo, err := NewSQLiteRepository(filepath.Join(t.TempDir(), "stats.db"))
+	if err != nil {
+		t.Fatalf("new sqlite repo: %v", err)
+	}
+	defer repo.Close()
+	base := time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)
+	h := &parser.Hand{StartTime: base, EndTime: base, IsComplete: true, StatsEligible: true, LocalPlayerSeat: 0, SBSeat: 0, BBSeat: 1, NumPlayers: 2, ActiveSeats: []int{0, 1}, Players: map[int]*parser.PlayerHandInfo{
+		0: {SeatID: 0, Position: parser.PosBTN, Actions: []parser.PlayerAction{{Timestamp: base, Street: parser.StreetPreFlop, Action: parser.ActionBlindSB, Amount: 10, Sequence: 1}, {Timestamp: base, Street: parser.StreetPreFlop, Action: parser.ActionCall, Amount: 20, Sequence: 3}}},
+		1: {SeatID: 1, Position: parser.PosBB, Actions: []parser.PlayerAction{{Timestamp: base, Street: parser.StreetPreFlop, Action: parser.ActionBlindBB, Amount: 20, Sequence: 2}, {Timestamp: base, Street: parser.StreetPreFlop, Action: parser.ActionCheck, Sequence: 4}}},
+	}}
+	src := HandSourceRef{SourcePath: "order.log", StartByte: 0, EndByte: 1, StartLine: 1, EndLine: 1}
+	src.HandUID = GenerateHandUID(h, src)
+	if _, err := repo.UpsertHands(context.Background(), []PersistedHand{{Hand: h, Source: src}}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	got, err := repo.GetHandByUID(context.Background(), src.HandUID)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got == nil {
+		t.Fatal("missing hand")
+	}
+	if got.Players[0].Actions[0].Sequence != 1 || got.Players[1].Actions[0].Sequence != 2 || got.Players[0].Actions[1].Sequence != 3 {
+		t.Fatalf("action sequence was not retained: %#v %#v", got.Players[0].Actions, got.Players[1].Actions)
+	}
+}
+
 func TestSaveImportBatchSQLiteOverwriteHandChildren(t *testing.T) {
 	t.Parallel()
 

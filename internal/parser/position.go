@@ -1,6 +1,9 @@
 package parser
 
 func (p *Parser) assignPositions(h *Hand) {
+	for _, pi := range h.Players {
+		pi.Position = PosUnknown
+	}
 	if h.SBSeat < 0 || h.BBSeat < 0 {
 		return
 	}
@@ -18,6 +21,17 @@ func (p *Parser) assignPositions(h *Hand) {
 	if sbIdx < 0 {
 		return
 	}
+	bbIdx := -1
+	for i, s := range allSeats {
+		if s == h.BBSeat {
+			bbIdx = i
+			break
+		}
+	}
+	if bbIdx != (sbIdx+1)%len(allSeats) {
+		h.addAnomaly("BLIND_SEAT_ORDER_AMBIGUOUS", "warn", "small and big blind seats are not adjacent in observed seat order")
+		return
+	}
 
 	rotated := append(allSeats[sbIdx:], allSeats[:sbIdx]...)
 	positions := positionOrder(len(rotated))
@@ -31,7 +45,9 @@ func (p *Parser) assignPositions(h *Hand) {
 func positionOrder(n int) []Position {
 	switch n {
 	case 2:
-		return []Position{PosSB, PosBTN}
+		// Heads-up button posts the small blind; retain BTN as the positional
+		// label while Hand.SBSeat records the forced blind role.
+		return []Position{PosBTN, PosBB}
 	case 3:
 		return []Position{PosSB, PosBB, PosBTN}
 	case 4:
