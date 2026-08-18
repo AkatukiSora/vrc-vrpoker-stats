@@ -97,6 +97,18 @@ func TestHandHistoryHarnessCreatesWindowAndSelectsRow(t *testing.T) {
 	h.fake.releaseHand("hand-1")
 }
 
+func TestHandHistoryExportButtonTracksSelection(t *testing.T) {
+	h := newHandHistoryHarness(t)
+	h.seedSummaries(handSummary("hand-1", 1))
+	if !h.app.handHistoryView.exportButton.Disabled() {
+		t.Fatal("export must be disabled before a hand is selected")
+	}
+	h.selectRow(t, 0)
+	if h.app.handHistoryView.exportButton.Disabled() {
+		t.Fatal("export must be enabled for the selected hand")
+	}
+}
+
 func TestHandHistoryHarnessControlsAsyncCompletion(t *testing.T) {
 	h := newHandHistoryHarness(t)
 	h.seedSummaries(handSummary("hand-1", 0), handSummary("hand-2", 1))
@@ -490,13 +502,19 @@ func canvasObjectTexts(obj fyne.CanvasObject) []string {
 }
 
 type fakeHandHistoryAppService struct {
-	mu           sync.Mutex
-	summaries    []persistence.HandSummary
-	totalCount   int
-	listCalls    chan struct{}
-	detailCalls  chan string
-	requestLog   []string
-	blockedHands map[string]*blockedHandResult
+	mu                 sync.Mutex
+	summaries          []persistence.HandSummary
+	totalCount         int
+	listCalls          chan struct{}
+	detailCalls        chan string
+	requestLog         []string
+	blockedHands       map[string]*blockedHandResult
+	exportData         []byte
+	exportErr          error
+	exportRangeData    []byte
+	exportRangeCount   int
+	exportRangeSkipped int
+	exportRangeErr     error
 }
 
 type blockedHandResult struct {
@@ -625,6 +643,18 @@ func (f *fakeHandHistoryAppService) GetHandByUID(_ context.Context, uid string) 
 	}
 
 	return nil, fmt.Errorf("unexpected uid: %s", uid)
+}
+
+func (f *fakeHandHistoryAppService) ExportHandPHH(context.Context, string) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]byte(nil), f.exportData...), f.exportErr
+}
+
+func (f *fakeHandHistoryAppService) ExportHandsPHH(context.Context, persistence.HandFilter) ([]byte, int, int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]byte(nil), f.exportRangeData...), f.exportRangeCount, f.exportRangeSkipped, f.exportRangeErr
 }
 
 func (f *fakeHandHistoryAppService) NextOffset(context.Context, string) (int64, error) {

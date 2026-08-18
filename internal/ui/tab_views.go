@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
@@ -280,22 +282,28 @@ type handHistoryTabView struct {
 
 	// onFetchHand is called when the user selects a hand in the list.
 	// The UID is passed; the controller fetches the full hand and calls UpdateDetail.
-	onFetchHand func(uid string)
+	onFetchHand   func(uid string)
+	onExportHand  func(uid string)
+	onExportRange func()
 
 	// detailContent holds the right-side detail panel; kept as a typed ref so
 	// UpdateDetail can replace its content while reusing the same container.
-	detailContent  *fyne.Container
-	list           *widget.List
-	split          *container.Split
-	suppressSelect bool
+	detailContent     *fyne.Container
+	list              *widget.List
+	split             *container.Split
+	suppressSelect    bool
+	exportButton      *widget.Button
+	exportRangeButton *widget.Button
 }
 
-func newHandHistoryTabView(state *HandHistoryViewState, onLoadPage func(page int), onFetchHand func(uid string)) *handHistoryTabView {
+func newHandHistoryTabView(state *HandHistoryViewState, onLoadPage func(page int), onFetchHand func(uid string), onExportHand func(uid string), onExportRange func()) *handHistoryTabView {
 	return &handHistoryTabView{
-		tabRoot:     newTabRoot(),
-		state:       state,
-		onLoadPage:  onLoadPage,
-		onFetchHand: onFetchHand,
+		tabRoot:       newTabRoot(),
+		state:         state,
+		onLoadPage:    onLoadPage,
+		onFetchHand:   onFetchHand,
+		onExportHand:  onExportHand,
+		onExportRange: onExportRange,
 	}
 }
 
@@ -361,7 +369,8 @@ func (v *handHistoryTabView) rebuild() {
 	title := widget.NewLabelWithStyle(lang.X("hand_history.title", "Recent Hands"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	subtitle := widget.NewLabel(lang.X("hand_history.subtitle", "Select a hand to inspect street-by-street action flow."))
 	subtitle.Wrapping = fyne.TextWrapWord
-	content = container.NewBorder(container.NewVBox(title, subtitle, newSectionDivider()), nil, nil, nil, content)
+	header := container.NewBorder(nil, nil, nil, container.NewHBox(v.exportRangeButton, v.exportButton), container.NewVBox(title, subtitle, newSectionDivider()))
+	content = container.NewBorder(header, nil, nil, nil, content)
 	inner := container.NewBorder(panel, nil, nil, nil, content)
 	replaceViewContentPreservingLayout(v.root, inner)
 }
@@ -373,6 +382,22 @@ func (v *handHistoryTabView) ensureInitialized() {
 	if v.detailContent == nil {
 		v.detailContent = container.NewStack()
 		v.detailContent.Objects = []fyne.CanvasObject{buildDetailPanelEmpty(lang.X("hand_history.select_hand", "Select a hand to see details."))}
+	}
+	if v.exportButton == nil {
+		v.exportButton = widget.NewButton(lang.X("hand_history.export.button", "Export PHH"), func() {
+			if v.state == nil || v.state.SelectedHandKey == "" || v.onExportHand == nil {
+				return
+			}
+			v.onExportHand(strings.TrimPrefix(v.state.SelectedHandKey, "uid:"))
+		})
+		v.exportButton.Disable()
+	}
+	if v.exportRangeButton == nil {
+		v.exportRangeButton = widget.NewButton(lang.X("hand_history.export.range.button", "Export range"), func() {
+			if v.onExportRange != nil {
+				v.onExportRange()
+			}
+		})
 	}
 	if v.list != nil {
 		return
@@ -404,6 +429,7 @@ func (v *handHistoryTabView) ensureInitialized() {
 		s := v.summaries[id]
 		selectedUID := s.HandUID
 		v.state.SelectedHandKey = "uid:" + selectedUID
+		v.exportButton.Enable()
 		if v.suppressSelect {
 			v.suppressSelect = false
 			return
@@ -460,6 +486,9 @@ func (v *handHistoryTabView) showLoadingDetail() {
 }
 
 func (v *handHistoryTabView) showEmptyDetail() {
+	if v.exportButton != nil {
+		v.exportButton.Disable()
+	}
 	if v.detailContent == nil {
 		return
 	}

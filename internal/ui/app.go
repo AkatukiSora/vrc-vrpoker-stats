@@ -693,6 +693,10 @@ func (a *App) doRefreshCurrentTab() {
 			}, func(uid string) {
 				reqGen := a.nextHandDetailRequestGeneration()
 				go a.loadHandDetail(uid, reqGen)
+			}, func(uid string) {
+				a.exportHandPHH(uid)
+			}, func() {
+				a.exportHandRangePHH()
 			})
 		}
 		// Show current (possibly stale) state immediately.
@@ -738,6 +742,22 @@ func (a *App) doRefreshCurrentTab() {
 
 	a.mainContent.Objects = []fyne.CanvasObject{obj}
 	a.mainContent.Refresh()
+}
+
+func (a *App) exportHandPHH(uid string) {
+	if uid == "" || a.win == nil {
+		return
+	}
+	newHandExportFlow(a.ctx, a.service, nativeHandExportDialog{window: a.win}, a.doSetStatus).begin(uid)
+}
+
+func (a *App) exportHandRangePHH() {
+	if a.win == nil {
+		return
+	}
+	showHandExportRangeDialog(a.win, func(filter persistence.HandFilter) {
+		newHandExportFlow(a.ctx, a.service, nativeHandExportDialog{window: a.win}, a.doSetStatus).beginRange(filter)
+	}, a.doSetStatus)
 }
 
 func (a *App) buildHandHistoryFilter() persistence.HandFilter {
