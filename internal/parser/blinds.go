@@ -43,7 +43,26 @@ func hasCompletePreflopRotation(h *Hand) bool {
 			}
 		}
 	}
-	return len(seen) == len(h.ActiveSeats)
+	if len(seen) == len(h.ActiveSeats) {
+		return true
+	}
+	// A fold-win ends the round immediately. Its sole surviving player has no
+	// legal response to log, so accept exactly that one missing decision only
+	// when the winner is explicit and every recorded decision folded.
+	if len(seen) != len(h.ActiveSeats)-1 || h.WinType != "fold" || h.WinnerSeat < 0 || seen[h.WinnerSeat] {
+		return false
+	}
+	for seat, pi := range h.Players {
+		if seat == h.WinnerSeat || pi == nil {
+			continue
+		}
+		for _, a := range pi.Actions {
+			if a.Street == StreetPreFlop && a.Action != ActionBlindSB && a.Action != ActionBlindBB && a.Action != ActionFold {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (p *Parser) blindAmounts(h *Hand) (int, int) {

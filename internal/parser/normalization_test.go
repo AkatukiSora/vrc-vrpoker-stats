@@ -14,6 +14,25 @@ const truncatedBlindOnlyLog = `
 2026.08.18 12:00:02 Debug      -  [Table]: New Community Card: Qc
 `
 
+const headsUpSBFoldLog = `
+2026.08.18 12:01:00 Debug      -  [Table]: Preparing for New Game:
+2026.08.18 12:01:01 Debug      -  [Seat]: Player 0 SB BET IN = 10
+2026.08.18 12:01:01 Debug      -  [Seat]: Player 1 BB BET IN = 20
+2026.08.18 12:01:02 Debug      -  [Seat]: Player 0 Folded.
+2026.08.18 12:01:03 Debug      -  [Table]: Fold to One Condition
+2026.08.18 12:01:04 Debug      -  [PotManager]: All players folded, player 1 won 30
+`
+
+const multiwayFoldWinLog = `
+2026.08.18 12:02:00 Debug      -  [Table]: Preparing for New Game:
+2026.08.18 12:02:01 Debug      -  [Seat]: Player 0 SB BET IN = 10
+2026.08.18 12:02:01 Debug      -  [Seat]: Player 1 BB BET IN = 20
+2026.08.18 12:02:02 Debug      -  [Seat]: Player 2 Folded.
+2026.08.18 12:02:03 Debug      -  [Seat]: Player 0 Folded.
+2026.08.18 12:02:04 Debug      -  [Table]: Fold to One Condition
+2026.08.18 12:02:05 Debug      -  [PotManager]: All players folded, player 1 won 30
+`
+
 func normalizedHand(seats ...int) *Hand {
 	players := make(map[int]*PlayerHandInfo, len(seats))
 	for _, seat := range seats {
@@ -125,5 +144,33 @@ func TestParsePartialBlindOnlyHandLeavesPositionsUnknown(t *testing.T) {
 	}
 	if h.Players[0].Position != PosUnknown || h.Players[1].Position != PosUnknown {
 		t.Fatalf("partial hand fabricated positions: %s, %s", h.Players[0].Position, h.Players[1].Position)
+	}
+}
+
+func TestParseTerminalFoldWinAllowsPassiveWinner(t *testing.T) {
+	tests := []struct {
+		name string
+		log  string
+		want map[int]Position
+	}{
+		{"heads up SB fold", headsUpSBFoldLog, map[int]Position{0: PosBTN, 1: PosBB}},
+		{"multiway fold win", multiwayFoldWinLog, map[int]Position{0: PosSB, 1: PosBB, 2: PosBTN}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseReader(strings.NewReader(tt.log))
+			if err != nil || len(result.Hands) != 1 {
+				t.Fatalf("parse result: hands=%d err=%v", len(result.Hands), err)
+			}
+			h := result.Hands[0]
+			if h.HasDataAnomaly() || !h.IsStatsEligible() {
+				t.Fatalf("terminal fold win unexpectedly rejected: %#v", h.Anomalies)
+			}
+			for seat, want := range tt.want {
+				if got := h.Players[seat].Position; got != want {
+					t.Errorf("seat %d position=%s want %s", seat, got, want)
+				}
+			}
+		})
 	}
 }
