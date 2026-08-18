@@ -230,6 +230,9 @@
   "hand_history.summary.no_actions_note": "Action timeline not available in summary view.",
   "hand_history.detail.loading": "Loading hand details…",
   "hand_history.detail.error": "Failed to load hand details.",
+  "hand_history.export.button": "Export PHH",
+  "hand_history.export.error": "Could not export hand: {{.Error}}",
+  "hand_history.export.success": "Hand exported: {{.Path}}",
 
   "hand_range.samples": "Samples: {{.N}}",
   "hand_range.combo_action_title_named": "{{.Combo}} Action Frequency",

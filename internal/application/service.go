@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/handhistory"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/persistence"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
@@ -29,9 +30,26 @@ type AppService interface {
 	// GetHandByUID returns the full hand data for a single hand UID (for detail view).
 	// Returns nil, nil if not found.
 	GetHandByUID(ctx context.Context, uid string) (*parser.Hand, error)
+	ExportHandPHH(ctx context.Context, uid string) ([]byte, error)
 	NextOffset(ctx context.Context, path string) (int64, error)
 	MarkLogFullyImported(ctx context.Context, path string)
 	Close() error
+}
+
+// ExportHandPHH serializes one persisted hand in the open PHH/TOML format.
+func (s *Service) ExportHandPHH(ctx context.Context, uid string) ([]byte, error) {
+	h, err := s.GetHandByUID(ctx, uid)
+	if err != nil {
+		return nil, fmt.Errorf("get hand for export: %w", err)
+	}
+	if h == nil {
+		return nil, fmt.Errorf("hand %q not found", uid)
+	}
+	data, err := handhistory.SerializePHH(h)
+	if err != nil {
+		return nil, fmt.Errorf("serialize hand %q: %w", uid, err)
+	}
+	return data, nil
 }
 
 type LogFileLocator func() ([]string, error)

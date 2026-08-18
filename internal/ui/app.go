@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -693,6 +694,8 @@ func (a *App) doRefreshCurrentTab() {
 			}, func(uid string) {
 				reqGen := a.nextHandDetailRequestGeneration()
 				go a.loadHandDetail(uid, reqGen)
+			}, func(uid string) {
+				a.exportHandPHH(uid)
 			})
 		}
 		// Show current (possibly stale) state immediately.
@@ -738,6 +741,34 @@ func (a *App) doRefreshCurrentTab() {
 
 	a.mainContent.Objects = []fyne.CanvasObject{obj}
 	a.mainContent.Refresh()
+}
+
+func (a *App) exportHandPHH(uid string) {
+	if uid == "" || a.win == nil {
+		return
+	}
+	save := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
+		if err != nil || writer == nil {
+			return
+		}
+		go func() {
+			data, exportErr := a.service.ExportHandPHH(a.ctx, uid)
+			if exportErr == nil {
+				_, exportErr = writer.Write(data)
+			}
+			closeErr := writer.Close()
+			if exportErr == nil {
+				exportErr = closeErr
+			}
+			if exportErr != nil {
+				a.doSetStatus(lang.X("hand_history.export.error", "Could not export hand: {{.Error}}", map[string]any{"Error": exportErr}))
+				return
+			}
+			a.doSetStatus(lang.X("hand_history.export.success", "Hand exported: {{.Path}}", map[string]any{"Path": writer.URI().Name()}))
+		}()
+	}, a.win)
+	save.SetFileName("vrpoker-hand-" + uid + ".phh")
+	save.Show()
 }
 
 func (a *App) buildHandHistoryFilter() persistence.HandFilter {

@@ -97,6 +97,18 @@ func TestHandHistoryHarnessCreatesWindowAndSelectsRow(t *testing.T) {
 	h.fake.releaseHand("hand-1")
 }
 
+func TestHandHistoryExportButtonTracksSelection(t *testing.T) {
+	h := newHandHistoryHarness(t)
+	h.seedSummaries(handSummary("hand-1", 1))
+	if !h.app.handHistoryView.exportButton.Disabled() {
+		t.Fatal("export must be disabled before a hand is selected")
+	}
+	h.selectRow(t, 0)
+	if h.app.handHistoryView.exportButton.Disabled() {
+		t.Fatal("export must be enabled for the selected hand")
+	}
+}
+
 func TestHandHistoryHarnessControlsAsyncCompletion(t *testing.T) {
 	h := newHandHistoryHarness(t)
 	h.seedSummaries(handSummary("hand-1", 0), handSummary("hand-2", 1))
@@ -627,6 +639,10 @@ func (f *fakeHandHistoryAppService) GetHandByUID(_ context.Context, uid string) 
 	}
 
 	return nil, fmt.Errorf("unexpected uid: %s", uid)
+}
+
+func (f *fakeHandHistoryAppService) ExportHandPHH(context.Context, string) ([]byte, error) {
+	return nil, nil
 }
 
 func (f *fakeHandHistoryAppService) NextOffset(context.Context, string) (int64, error) {
