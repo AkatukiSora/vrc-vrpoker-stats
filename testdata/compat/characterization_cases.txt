@@ -1,0 +1,54 @@
+Debug      -  [Table]: Preparing for New Game: without timestamp
+2026.02.30 00:00:00 Debug      -  [Table]: Preparing for New Game: invalid timestamp
+2026.02.21 00:00:00 Debug      -  [Table]: unknown event with valid timestamp
+2026.02.21 00:00:01 Debug      -  [Behaviour] Destination requested: wrld_aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa:dest~region(us)
+2026.02.21 00:00:02 Debug      -  [Behaviour] Joining friend: wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:12345~region(us)~group(grp_synthetic)~groupAccessType(plus)
+2026.02.21 00:00:03 Debug      -  [Behaviour] Joining: wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:public
+2026.02.21 00:00:04 Debug      -  [Behaviour] Joining: wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:friends~friends(usr_synthetic)
+2026.02.21 00:00:05 Debug      -  [Behaviour] Joining: wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:friends-plus~hidden(usr_synthetic)
+2026.02.21 00:00:06 Debug      -  [Behaviour] Joining: wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:invite~private(usr_synthetic)
+2026.02.21 00:00:07 Debug      -  [Behaviour] Joining: wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:invite-plus~private(usr_synthetic)~canRequestInvite(true)
+2026.02.21 00:00:08 Debug      -  [Behaviour] Joining: wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:group~group(grp_synthetic)
+2026.02.21 00:00:09 Debug      -  [Behaviour] Joining: wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:group-plus~group(grp_synthetic)~groupAccessType(plus)
+2026.02.21 00:00:10 Debug      -  [Behaviour] Joining: wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:group-public~group(grp_synthetic)~groupAccessType(public)
+2026.02.21 00:00:11 Debug      -  [Behaviour] Entering Room: Café 東京
+2026.02.21 00:00:04 Debug      -  [Behaviour] OnPlayerJoined Alice Δ (usr_00000000-0000-0000-0000-000000000001)
+2026.02.21 00:00:05 Debug      -  [Behaviour] OnPlayerJoined Bob (usr_00000000-0000-0000-0000-000000000002)
+2026.02.21 00:00:06 Debug      -  [Behaviour] Entering Room: multi-marker [Behaviour] OnLeftRoom
+2026.02.21 00:00:07 Debug      -  [Table]: Preparing for New Game: 
+2026.02.21 00:00:08 Debug      -  [Manager]: Local Seat Assigned. ID: 2
+2026.02.21 00:00:09 Debug      -  [Seat]: Draw Local Hole Cards: As, Kd
+2026.02.21 00:00:10 Debug      -  [Seat]: Player 0 End Turn with BET IN = 20
+2026.02.21 00:00:11 Debug      -  [Table]: New Min Bet: 999999999999999999999999999
+2026.02.21 00:00:12 Debug      -  [Table]: New Community Card: BAD
+2026.02.21 00:00:13 Debug      -  [Seat]: Player 0 Folded.
+2026.02.21 00:00:14 Debug      -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.21 00:00:15 Debug      -  [Table]: Collecting Bets. ----------------
+2026.02.21 00:00:16 Debug      -  [Pot]: Winner: 1 Pot Amount: 20
+2026.02.21 00:00:17 Debug      -  [Table]: Preparing for New Game: 
+2026.02.21 00:00:18 Debug      -  [Behaviour] OnLeftRoom
+2026.02.21 00:00:19 Debug      -  [Behaviour] Joining: wrld_bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb:room~private(usr_00000000-0000-0000-0000-000000000003)~canRequestInvite(true)
+2026.02.21 00:00:19 Debug      -  [Behaviour] Joining wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:12345~region(us)
+2026.02.21 00:00:20 Debug      -  [Table]: New Community Card: Qh
+2026.02.21 00:00:21 Debug      -  [Seat]: Draw Local Hole Cards: Ac, 2d
+2026.02.21 00:00:22 Debug      -  [Seat]: Player 3 End Turn with BET IN = 10
+2026.02.21 00:00:23 Debug      -  [Table]: Preparing for New Game: 
+2026.02.21 00:00:24 Debug      -  [Manager]: Local Seat Assigned. ID: 3
+2026.02.21 00:00:25 Debug      -  [Seat]: Player 3 BB BET IN = 20
+2026.02.21 00:00:26 Debug      -  [Seat]: Player 2 SB BET IN = 10
+2026.02.21 00:00:27 Debug      -  [Seat]: Player 2 End Turn with BET IN = 300
+2026.02.21 00:00:28 Debug      -  [Seat]: Player 1 End Turn with BET IN = 900
+2026.02.21 00:00:29 Debug      -  [Seat]: Player 2 Folded.
+2026.02.21 00:00:30 Debug      -  [Pot]: Winner: 1 Pot Amount: 500
+2026.02.21 00:00:31 Debug      -  [Pot]: Winner: 3 Pot Amount: 100
+2026.02.21 00:00:32 Debug      -  [Table]: Preparing for New Game: 
+2026.02.21 00:00:33 Debug      -  [Table]: New Community Card: As
+2026.02.21 00:00:34 Debug      -  [Table]: New Community Card: As
+2026.02.21 00:00:35 Debug      -  [Table]: Preparing for New Game: 
+2026.02.21 00:00:36 Debug      -  [Table]: New Community Card: Ah
+2026.02.21 00:00:37 Debug      -  [Table]: New Community Card: Kd
+2026.02.21 00:00:38 Debug      -  [Table]: New Community Card: Qc
+2026.02.21 00:00:39 Debug      -  [Table]: New Community Card: Js
+2026.02.21 00:00:40 Debug      -  [Table]: New Community Card: 10h
+2026.02.21 00:00:41 Debug      -  [Table]: New Community Card: 9d
+2026.02.21 00:00:42 Debug      -  [Table]: Preparing for New Game: 

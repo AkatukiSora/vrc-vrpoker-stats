@@ -1,0 +1,451 @@
+2026.02.01 02:43:00 Debug     -  Odin Serializer ArchitectureInfo initialization with defaults (all unaligned read/writes disabled).
+2026.02.01 02:43:01 Debug     -  Odin Serializer detected whitelisted runtime platform WindowsPlayer and memory read test succeeded; enabling all unaligned memory read/writes.
+2026.02.01 02:43:02 Debug     -  initialized Steam connection
+2026.02.01 02:43:03 Debug     -  Using server environment: Release, bf0942f7
+2026.02.01 02:43:04 Debug     -  Launching with args: 2
+2026.02.01 02:43:05 Debug     -  [DebugUI] Registered 6 debug UI pages: AssetBundleMemory, DrawHMD, Log, PlayerInfo, NetworkObjectInfo, PerformanceGraphs
+2026.02.01 02:43:06 Debug     -  Loaded HRTF: COMB_KEMAR_v2_OUT.sofa.
+2026.02.01 02:43:07 Debug     -  [AssetBundleDownloadManager] Using default cache directory.
+2026.02.01 02:43:08 Debug     -  [AssetBundleDownloadManager] Using default cache size: 30.00GB
+2026.02.01 02:43:09 Debug     -  [Behaviour] Registering Avatar Interaction
+2026.02.01 02:43:10 Debug     -  VRC Analytics Initialized
+2026.02.01 02:43:11 Debug     -  [Behaviour] Entering Room: Home
+2026.02.01 02:43:12 Debug     -  [Behaviour] Joining wrld_4432ea9b-729c-46e3-8eaf-846aa0a37fdd:0~public~region(jp)
+2026.02.01 02:43:13 Debug     -  [Behaviour] Entering Room: VRChat Home
+2026.02.01 02:43:14 Debug     -  [Behaviour] Successfully joined room
+2026.02.01 02:48:15 Debug      -  [Behaviour] Joining wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:19461~group(grp_57f4df89-42ef-44ce-a66c-49e9f5846643)~groupAccessType(plus)~region(jp)
+2026.02.01 02:48:16 Debug      -  [Behaviour] Entering Room: VR Poker
+2026.02.01 02:48:17 Debug      -  [Behaviour] Joining or Creating Room: VR Poker
+2026.02.01 02:48:18 Debug      -  [Behaviour] Successfully joined room
+2026.02.01 02:48:19 Debug      -  [Behaviour] Spent 0.004882813s entering world.
+2026.02.01 02:48:20 Debug      -  [Behaviour] Waiting to enter network room.
+2026.02.01 02:48:21 Debug      -  [Behaviour] Spent 0.144043s waiting to enter room.
+2026.02.01 02:48:22 Debug      -  [Behaviour] Waiting to discover master client.
+2026.02.01 02:48:23 Debug      -  [Behaviour] Spawning players
+2026.02.01 02:48:24 Debug      -  [Behaviour] Finished spawning players.
+2026.02.01 02:48:25 Debug      -  [Manager]: Local Seat Assigned. ID: 5
+2026.02.01 02:48:26 Debug     -  [Behaviour] Microphone device changing to 'System Default'
+2026.02.01 02:48:28 Debug     -  [Behaviour] OnRoomPropertiesUpdate
+2026.02.01 02:48:30 Debug     -  [AssetBundleDownloadManager] Using default cache directory.
+2026.02.01 02:48:33 Debug     -  [Behaviour] Waiting for Properties for VRCPlayer[Remote] 58633205 6
+2026.02.01 02:48:36 Debug     -  [Network] Network stats: sent 34945 bytes/sec, received 1884 bytes/sec
+2026.02.01 02:48:37 Debug     -  [Behaviour] OnRoomPropertiesUpdate
+2026.02.01 02:48:39 Debug     -  [Network] Network stats: sent 18855 bytes/sec, received 47311 bytes/sec
+2026.02.01 02:48:40 Debug     -  [Behaviour] Spent 9.850614s waiting to discover master client.
+2026.02.01 02:48:41 Debug     -  [Behaviour] Microphone device changing to 'System Default'
+2026.02.01 02:48:44 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:48:45 Debug     -  [Seat]: Player 1 SB BET IN = 25
+2026.02.01 02:48:45 Debug     -  [Seat]: Player 0 BB BET IN = 50
+2026.02.01 02:48:45 Debug     -  [Seat]: Draw Local Hole Cards: 3c, 9h
+2026.02.01 02:48:47 Debug     -  [Seat]: Player 2 End Turn with BET IN = 50
+2026.02.01 02:48:48 Debug     -  [Seat]: Player 0 End Turn with BET IN = 50
+2026.02.01 02:48:48 Debug     -  [Seat]: Player 1 End Turn with BET IN = 50
+2026.02.01 02:48:48 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:48:48 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:48:49 Debug     -  [Table]: New Community Card: 9d
+2026.02.01 02:48:49 Debug     -  [Table]: New Community Card: 10h
+2026.02.01 02:48:49 Debug     -  [Table]: New Community Card: 7s
+2026.02.01 02:48:54 Debug     -  [Seat]: Player 0 End Turn with BET IN = 250
+2026.02.01 02:48:55 Debug     -  [Seat]: Player 1 End Turn with BET IN = 250
+2026.02.01 02:48:56 Debug     -  [Seat]: Player 2 End Turn with BET IN = 250
+2026.02.01 02:48:56 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:48:57 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:48:58 Debug     -  [Table]: New Community Card: 6s
+2026.02.01 02:49:02 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:49:03 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:49:04 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:49:04 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:49:05 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:49:06 Debug     -  [Table]: New Community Card: 6c
+2026.02.01 02:49:09 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:49:10 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:49:11 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:49:11 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:49:12 Debug     -  [Seat]: Player 0 Show hole cards: 3c, 9h
+2026.02.01 02:49:13 Debug     -  [Seat]: Player 1 Show hole cards: 3h, Jh
+2026.02.01 02:49:14 Debug     -  [Seat]: Player 2 Show hole cards: Js, Kc
+2026.02.01 02:49:15 Debug     -  [Pot]: Deal One Pot
+2026.02.01 02:49:17 Debug     -  [Pot]: Winner: 0 Pot Amount: 900
+2026.02.01 02:49:22 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:49:24 Debug     -  [Seat]: Player 0 SB BET IN = 30
+2026.02.01 02:49:24 Debug     -  [Seat]: Draw Local Hole Cards: 2c, Js
+2026.02.01 02:49:25 Debug     -  [Seat]: Player 1 BB BET IN = 60
+2026.02.01 02:49:26 Debug     -  [Seat]: Player 2 End Turn with BET IN = 60
+2026.02.01 02:49:27 Debug     -  [Seat]: Player 3 End Turn with BET IN = 60
+2026.02.01 02:49:28 Debug     -  [Seat]: Player 4 Folded.
+2026.02.01 02:49:28 Debug     -  [Seat]: Player 4 End Turn with BET IN = 0
+2026.02.01 02:49:29 Debug     -  [Seat]: Player 0 End Turn with BET IN = 60
+2026.02.01 02:49:29 Debug     -  [Seat]: Player 1 End Turn with BET IN = 60
+2026.02.01 02:49:29 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:49:29 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:49:30 Debug     -  [Table]: New Community Card: Ah
+2026.02.01 02:49:30 Debug     -  [Table]: New Community Card: 6d
+2026.02.01 02:49:30 Debug     -  [Table]: New Community Card: 5c
+2026.02.01 02:49:39 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:49:40 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:49:41 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:49:42 Debug     -  [Seat]: Player 3 End Turn with BET IN = 0
+2026.02.01 02:49:42 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:49:42 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:49:43 Debug     -  [Table]: New Community Card: 4s
+2026.02.01 02:49:59 Debug     -  [Seat]: Player 3 End Turn with BET IN = 150
+2026.02.01 02:50:00 Debug     -  [Table]: New Min Bet: 150 === New Min Raise: 150
+2026.02.01 02:50:01 Debug     -  [Seat]: Player 0 Folded.
+2026.02.01 02:50:01 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:50:02 Debug     -  [Seat]: Player 1 Folded.
+2026.02.01 02:50:02 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:50:03 Debug     -  [Seat]: Player 2 Folded.
+2026.02.01 02:50:03 Debug     -  [Table]: Fold to One Condition.
+2026.02.01 02:50:03 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:50:04 Debug     -  [PotManager]: All players folded, player 3 won 390
+2026.02.01 02:50:05 Debug     -  ================================================
+2026.02.01 02:50:10 Debug     -  [Behaviour] Waiting for Properties for VRCPlayer[Remote] 94493047 6
+2026.02.01 02:50:11 Warning   -  Failed to update discord rich presence
+2026.02.01 02:50:13 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:50:14 Debug     -  [Seat]: Player 1 SB BET IN = 10
+2026.02.01 02:50:14 Debug     -  [Seat]: Player 0 BB BET IN = 20
+2026.02.01 02:50:14 Debug     -  [Seat]: Draw Local Hole Cards: Qc, 6c
+2026.02.01 02:50:16 Debug     -  [Seat]: Player 2 End Turn with BET IN = 20
+2026.02.01 02:50:17 Debug     -  [Seat]: Player 0 End Turn with BET IN = 20
+2026.02.01 02:50:17 Debug     -  [Seat]: Player 1 End Turn with BET IN = 20
+2026.02.01 02:50:17 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:50:17 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:50:18 Debug     -  [Table]: New Community Card: Ad
+2026.02.01 02:50:18 Debug     -  [Table]: New Community Card: 3c
+2026.02.01 02:50:18 Debug     -  [Table]: New Community Card: Ks
+2026.02.01 02:50:23 Debug     -  [Seat]: Player 0 End Turn with BET IN = 100
+2026.02.01 02:50:24 Debug     -  [Seat]: Player 1 End Turn with BET IN = 100
+2026.02.01 02:50:25 Debug     -  [Seat]: Player 2 End Turn with BET IN = 100
+2026.02.01 02:50:25 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:50:26 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:50:27 Debug     -  [Table]: New Community Card: 8s
+2026.02.01 02:50:31 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:50:32 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:50:33 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:50:33 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:50:34 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:50:35 Debug     -  [Table]: New Community Card: 8c
+2026.02.01 02:50:38 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:50:39 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:50:40 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:50:40 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:50:41 Debug     -  [Seat]: Player 0 Show hole cards: Qc, 6c
+2026.02.01 02:50:42 Debug     -  [Seat]: Player 1 Show hole cards: 10d, 10h
+2026.02.01 02:50:43 Debug     -  [Seat]: Player 2 Show hole cards: 3s, 5s
+2026.02.01 02:50:44 Debug     -  [Pot]: Deal One Pot
+2026.02.01 02:50:46 Debug     -  [Pot]: Winner: 0 Pot Amount: 360
+2026.02.01 02:50:51 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:50:52 Debug     -  [Seat]: Player 1 SB BET IN = 20
+2026.02.01 02:50:52 Debug     -  [Seat]: Player 0 BB BET IN = 40
+2026.02.01 02:50:52 Debug     -  [Seat]: Draw Local Hole Cards: Ac, Kh
+2026.02.01 02:50:54 Debug     -  [Seat]: Player 2 End Turn with BET IN = 40
+2026.02.01 02:50:55 Debug     -  [Seat]: Player 0 End Turn with BET IN = 40
+2026.02.01 02:50:55 Debug     -  [Seat]: Player 1 End Turn with BET IN = 40
+2026.02.01 02:50:55 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:50:55 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:50:56 Debug     -  [Table]: New Community Card: As
+2026.02.01 02:50:56 Debug     -  [Table]: New Community Card: 7h
+2026.02.01 02:50:56 Debug     -  [Table]: New Community Card: 2d
+2026.02.01 02:51:01 Debug     -  [Seat]: Player 0 End Turn with BET IN = 200
+2026.02.01 02:51:02 Debug     -  [Seat]: Player 1 End Turn with BET IN = 200
+2026.02.01 02:51:03 Debug     -  [Seat]: Player 2 End Turn with BET IN = 200
+2026.02.01 02:51:03 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:51:04 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:51:05 Debug     -  [Table]: New Community Card: 5c
+2026.02.01 02:51:09 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:51:10 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:51:11 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:51:11 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:51:12 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:51:13 Debug     -  [Table]: New Community Card: 9s
+2026.02.01 02:51:16 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:51:17 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:51:18 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:51:18 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:51:19 Debug     -  [Seat]: Player 0 Show hole cards: Ac, Kh
+2026.02.01 02:51:20 Debug     -  [Seat]: Player 1 Show hole cards: 7d, 7c
+2026.02.01 02:51:21 Debug     -  [Seat]: Player 2 Show hole cards: 2h, 2c
+2026.02.01 02:51:22 Debug     -  [Pot]: Deal One Pot
+2026.02.01 02:51:24 Debug     -  [Pot]: Winner: 0 Pot Amount: 720
+2026.02.01 02:51:29 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:51:30 Debug     -  [Seat]: Player 1 SB BET IN = 10
+2026.02.01 02:51:30 Debug     -  [Seat]: Player 0 BB BET IN = 20
+2026.02.01 02:51:30 Debug     -  [Seat]: Draw Local Hole Cards: Ac, Kh
+2026.02.01 02:51:32 Debug     -  [Seat]: Player 2 End Turn with BET IN = 20
+2026.02.01 02:51:33 Debug     -  [Seat]: Player 0 End Turn with BET IN = 20
+2026.02.01 02:51:33 Debug     -  [Seat]: Player 1 End Turn with BET IN = 20
+2026.02.01 02:51:33 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:51:33 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:51:34 Debug     -  [Table]: New Community Card: As
+2026.02.01 02:51:34 Debug     -  [Table]: New Community Card: 7h
+2026.02.01 02:51:34 Debug     -  [Table]: New Community Card: 2d
+2026.02.01 02:51:39 Debug     -  [Seat]: Player 0 End Turn with BET IN = 100
+2026.02.01 02:51:40 Debug     -  [Seat]: Player 1 End Turn with BET IN = 100
+2026.02.01 02:51:41 Debug     -  [Seat]: Player 2 End Turn with BET IN = 100
+2026.02.01 02:51:41 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:51:42 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:51:43 Debug     -  [Table]: New Community Card: 5c
+2026.02.01 02:51:47 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:51:48 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:51:49 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:51:49 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:51:50 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:51:51 Debug     -  [Table]: New Community Card: 9s
+2026.02.01 02:51:54 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:51:55 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:51:56 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:51:56 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:51:57 Debug     -  [Seat]: Player 0 Show hole cards: Ac, Kh
+2026.02.01 02:51:58 Debug     -  [Seat]: Player 1 Show hole cards: 7d, 7c
+2026.02.01 02:51:59 Debug     -  [Seat]: Player 2 Show hole cards: 2h, 2c
+2026.02.01 02:52:00 Debug     -  [Pot]: Deal One Pot
+2026.02.01 02:52:02 Debug     -  [Pot]: Winner: 0 Pot Amount: 360
+2026.02.01 02:52:07 Debug     -  [Behaviour] Microphone device changing to 'System Default'
+2026.02.01 02:52:09 Warning   -  Failed to update discord rich presence
+2026.02.01 02:52:10 Warning   -  Failed to update discord rich presence
+2026.02.01 02:52:13 Debug     -  [Behaviour] Spent 5.271422s waiting to discover master client.
+2026.02.01 02:52:15 Warning   -  Failed to update discord rich presence
+2026.02.01 02:52:16 Debug     -  [Behaviour] OnRoomPropertiesUpdate
+2026.02.01 02:52:18 Debug     -  [Behaviour] OnPlayerJoined Player_4140 (usr_03f523d2-4875-20ad-8611-0000eb6c9012)
+2026.02.01 02:52:20 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:52:21 Debug     -  [Seat]: Player 1 SB BET IN = 8
+2026.02.01 02:52:21 Debug     -  [Seat]: Player 0 BB BET IN = 15
+2026.02.01 02:52:21 Debug     -  [Seat]: Draw Local Hole Cards: 6s, 10c
+2026.02.01 02:52:23 Debug     -  [Seat]: Player 2 End Turn with BET IN = 15
+2026.02.01 02:52:24 Debug     -  [Seat]: Player 0 End Turn with BET IN = 15
+2026.02.01 02:52:24 Debug     -  [Seat]: Player 1 End Turn with BET IN = 15
+2026.02.01 02:52:24 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:52:24 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:52:25 Debug     -  [Table]: New Community Card: 8d
+2026.02.01 02:52:25 Debug     -  [Table]: New Community Card: 3d
+2026.02.01 02:52:25 Debug     -  [Table]: New Community Card: 3s
+2026.02.01 02:52:30 Debug     -  [Seat]: Player 0 End Turn with BET IN = 75
+2026.02.01 02:52:31 Debug     -  [Seat]: Player 1 End Turn with BET IN = 75
+2026.02.01 02:52:32 Debug     -  [Seat]: Player 2 End Turn with BET IN = 75
+2026.02.01 02:52:32 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:52:33 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:52:34 Debug     -  [Table]: New Community Card: 9d
+2026.02.01 02:52:38 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:52:39 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:52:40 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:52:40 Debug     -  [Table]: Next phase.True - 3
+2026.02.01 02:52:41 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:52:42 Debug     -  [Table]: New Community Card: 3h
+2026.02.01 02:52:45 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:52:46 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:52:47 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:52:47 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:52:48 Debug     -  [Seat]: Player 0 Show hole cards: 6s, 10c
+2026.02.01 02:52:49 Debug     -  [Seat]: Player 1 Show hole cards: 8s, 10h
+2026.02.01 02:52:50 Debug     -  [Seat]: Player 2 Show hole cards: 6d, Kd
+2026.02.01 02:52:51 Debug     -  [Pot]: Deal One Pot
+2026.02.01 02:52:53 Debug     -  [Pot]: Winner: 0 Pot Amount: 270
+2026.02.01 02:52:58 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:53:00 Debug     -  [Seat]: Player 0 SB BET IN = 15
+2026.02.01 02:53:00 Debug     -  [Seat]: Draw Local Hole Cards: Ah, Ad
+2026.02.01 02:53:01 Debug     -  [Seat]: Player 1 BB BET IN = 30
+2026.02.01 02:53:02 Debug     -  [Seat]: Player 2 End Turn with BET IN = 30
+2026.02.01 02:53:03 Debug     -  [Seat]: Player 3 End Turn with BET IN = 30
+2026.02.01 02:53:04 Debug     -  [Seat]: Player 4 Folded.
+2026.02.01 02:53:04 Debug     -  [Seat]: Player 4 End Turn with BET IN = 0
+2026.02.01 02:53:05 Debug     -  [Seat]: Player 0 End Turn with BET IN = 30
+2026.02.01 02:53:05 Debug     -  [Seat]: Player 1 End Turn with BET IN = 30
+2026.02.01 02:53:05 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:53:05 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:53:06 Debug     -  [Table]: New Community Card: Jd
+2026.02.01 02:53:06 Debug     -  [Table]: New Community Card: Js
+2026.02.01 02:53:06 Debug     -  [Table]: New Community Card: 4h
+2026.02.01 02:53:15 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:53:16 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:53:17 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:53:18 Debug     -  [Seat]: Player 3 End Turn with BET IN = 0
+2026.02.01 02:53:18 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:53:18 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:53:19 Debug     -  [Table]: New Community Card: 5d
+2026.02.01 02:53:35 Debug     -  [Seat]: Player 3 End Turn with BET IN = 75
+2026.02.01 02:53:36 Debug     -  [Table]: New Min Bet: 75 === New Min Raise: 75
+2026.02.01 02:53:37 Debug     -  [Seat]: Player 0 Folded.
+2026.02.01 02:53:37 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:53:38 Debug     -  [Seat]: Player 1 Folded.
+2026.02.01 02:53:38 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:53:39 Debug     -  [Seat]: Player 2 Folded.
+2026.02.01 02:53:39 Debug     -  [Table]: Fold to One Condition.
+2026.02.01 02:53:39 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:53:40 Debug     -  [PotManager]: All players folded, player 3 won 195
+2026.02.01 02:53:41 Debug     -  ================================================
+2026.02.01 02:53:46 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:53:48 Debug     -  [Seat]: Player 0 SB BET IN = 8
+2026.02.01 02:53:48 Debug     -  [Seat]: Draw Local Hole Cards: Js, 6d
+2026.02.01 02:53:49 Debug     -  [Seat]: Player 1 BB BET IN = 15
+2026.02.01 02:53:50 Debug     -  [Seat]: Player 2 End Turn with BET IN = 15
+2026.02.01 02:53:51 Debug     -  [Seat]: Player 3 End Turn with BET IN = 15
+2026.02.01 02:53:52 Debug     -  [Seat]: Player 4 Folded.
+2026.02.01 02:53:52 Debug     -  [Seat]: Player 4 End Turn with BET IN = 0
+2026.02.01 02:53:53 Debug     -  [Seat]: Player 0 End Turn with BET IN = 15
+2026.02.01 02:53:53 Debug     -  [Seat]: Player 1 End Turn with BET IN = 15
+2026.02.01 02:53:53 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:53:53 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:53:54 Debug     -  [Table]: New Community Card: Ac
+2026.02.01 02:53:54 Debug     -  [Table]: New Community Card: 9h
+2026.02.01 02:53:54 Debug     -  [Table]: New Community Card: Jh
+2026.02.01 02:54:03 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:54:04 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:54:05 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:54:06 Debug     -  [Seat]: Player 3 End Turn with BET IN = 0
+2026.02.01 02:54:06 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:54:06 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:54:07 Debug     -  [Table]: New Community Card: 8h
+2026.02.01 02:54:23 Debug     -  [Seat]: Player 3 End Turn with BET IN = 38
+2026.02.01 02:54:24 Debug     -  [Table]: New Min Bet: 38 === New Min Raise: 38
+2026.02.01 02:54:25 Debug     -  [Seat]: Player 0 Folded.
+2026.02.01 02:54:25 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:54:26 Debug     -  [Seat]: Player 1 Folded.
+2026.02.01 02:54:26 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:54:27 Debug     -  [Seat]: Player 2 Folded.
+2026.02.01 02:54:27 Debug     -  [Table]: Fold to One Condition.
+2026.02.01 02:54:27 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:54:28 Debug     -  [PotManager]: All players folded, player 3 won 98
+2026.02.01 02:54:29 Debug     -  ================================================
+2026.02.01 02:54:34 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:54:36 Debug     -  [Seat]: Player 0 SB BET IN = 10
+2026.02.01 02:54:36 Debug     -  [Seat]: Draw Local Hole Cards: 7d, 9c
+2026.02.01 02:54:37 Debug     -  [Seat]: Player 1 BB BET IN = 20
+2026.02.01 02:54:38 Debug     -  [Seat]: Player 2 End Turn with BET IN = 20
+2026.02.01 02:54:39 Debug     -  [Seat]: Player 3 End Turn with BET IN = 20
+2026.02.01 02:54:40 Debug     -  [Seat]: Player 4 Folded.
+2026.02.01 02:54:40 Debug     -  [Seat]: Player 4 End Turn with BET IN = 0
+2026.02.01 02:54:41 Debug     -  [Seat]: Player 0 End Turn with BET IN = 20
+2026.02.01 02:54:41 Debug     -  [Seat]: Player 1 End Turn with BET IN = 20
+2026.02.01 02:54:41 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:54:41 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:54:42 Debug     -  [Table]: New Community Card: Qd
+2026.02.01 02:54:42 Debug     -  [Table]: New Community Card: 3s
+2026.02.01 02:54:42 Debug     -  [Table]: New Community Card: Kd
+2026.02.01 02:54:51 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:54:52 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:54:53 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:54:54 Debug     -  [Seat]: Player 3 End Turn with BET IN = 0
+2026.02.01 02:54:54 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:54:54 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:54:55 Debug     -  [Table]: New Community Card: 8c
+2026.02.01 02:55:11 Debug     -  [Seat]: Player 3 End Turn with BET IN = 50
+2026.02.01 02:55:12 Debug     -  [Table]: New Min Bet: 50 === New Min Raise: 50
+2026.02.01 02:55:13 Debug     -  [Seat]: Player 0 Folded.
+2026.02.01 02:55:13 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:55:14 Debug     -  [Seat]: Player 1 Folded.
+2026.02.01 02:55:14 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:55:15 Debug     -  [Seat]: Player 2 Folded.
+2026.02.01 02:55:15 Debug     -  [Table]: Fold to One Condition.
+2026.02.01 02:55:15 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:55:16 Debug     -  [PotManager]: All players folded, player 3 won 130
+2026.02.01 02:55:17 Debug     -  ================================================
+2026.02.01 02:55:22 Debug     -  [Behaviour] Spent 5.831076s waiting to discover master client.
+2026.02.01 02:55:23 Debug     -  [Behaviour] Microphone device changing to 'System Default'
+2026.02.01 02:55:25 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:55:27 Debug     -  [Seat]: Player 0 SB BET IN = 10
+2026.02.01 02:55:27 Debug     -  [Seat]: Draw Local Hole Cards: 4s, As
+2026.02.01 02:55:28 Debug     -  [Seat]: Player 1 BB BET IN = 20
+2026.02.01 02:55:29 Debug     -  [Seat]: Player 2 End Turn with BET IN = 20
+2026.02.01 02:55:30 Debug     -  [Seat]: Player 3 End Turn with BET IN = 20
+2026.02.01 02:55:31 Debug     -  [Seat]: Player 4 Folded.
+2026.02.01 02:55:31 Debug     -  [Seat]: Player 4 End Turn with BET IN = 0
+2026.02.01 02:55:32 Debug     -  [Seat]: Player 0 End Turn with BET IN = 20
+2026.02.01 02:55:32 Debug     -  [Seat]: Player 1 End Turn with BET IN = 20
+2026.02.01 02:55:32 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:55:32 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:55:33 Debug     -  [Table]: New Community Card: 10h
+2026.02.01 02:55:33 Debug     -  [Table]: New Community Card: 10s
+2026.02.01 02:55:33 Debug     -  [Table]: New Community Card: Qs
+2026.02.01 02:55:42 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:55:43 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:55:44 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:55:45 Debug     -  [Seat]: Player 3 End Turn with BET IN = 0
+2026.02.01 02:55:45 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:55:45 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:55:46 Debug     -  [Table]: New Community Card: 3h
+2026.02.01 02:56:02 Debug     -  [Seat]: Player 3 End Turn with BET IN = 50
+2026.02.01 02:56:03 Debug     -  [Table]: New Min Bet: 50 === New Min Raise: 50
+2026.02.01 02:56:04 Debug     -  [Seat]: Player 0 Folded.
+2026.02.01 02:56:04 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:56:05 Debug     -  [Seat]: Player 1 Folded.
+2026.02.01 02:56:05 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:56:06 Debug     -  [Seat]: Player 2 Folded.
+2026.02.01 02:56:06 Debug     -  [Table]: Fold to One Condition.
+2026.02.01 02:56:06 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:56:07 Debug     -  [PotManager]: All players folded, player 3 won 130
+2026.02.01 02:56:08 Debug     -  ================================================
+2026.02.01 02:56:13 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:56:15 Debug     -  [Seat]: Player 0 SB BET IN = 10
+2026.02.01 02:56:15 Debug     -  [Seat]: Draw Local Hole Cards: 6h, Ah
+2026.02.01 02:56:16 Debug     -  [Seat]: Player 1 BB BET IN = 20
+2026.02.01 02:56:17 Debug     -  [Seat]: Player 2 End Turn with BET IN = 20
+2026.02.01 02:56:18 Debug     -  [Seat]: Player 3 End Turn with BET IN = 20
+2026.02.01 02:56:19 Debug     -  [Seat]: Player 4 Folded.
+2026.02.01 02:56:19 Debug     -  [Seat]: Player 4 End Turn with BET IN = 0
+2026.02.01 02:56:20 Debug     -  [Seat]: Player 0 End Turn with BET IN = 20
+2026.02.01 02:56:20 Debug     -  [Seat]: Player 1 End Turn with BET IN = 20
+2026.02.01 02:56:20 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:56:20 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:56:21 Debug     -  [Table]: New Community Card: 8d
+2026.02.01 02:56:21 Debug     -  [Table]: New Community Card: Jc
+2026.02.01 02:56:21 Debug     -  [Table]: New Community Card: 10d
+2026.02.01 02:56:30 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:56:31 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:56:32 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:56:33 Debug     -  [Seat]: Player 3 End Turn with BET IN = 0
+2026.02.01 02:56:33 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:56:33 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:56:34 Debug     -  [Table]: New Community Card: Kc
+2026.02.01 02:56:50 Debug     -  [Seat]: Player 3 End Turn with BET IN = 50
+2026.02.01 02:56:51 Debug     -  [Table]: New Min Bet: 50 === New Min Raise: 50
+2026.02.01 02:56:52 Debug     -  [Seat]: Player 0 Folded.
+2026.02.01 02:56:52 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:56:53 Debug     -  [Seat]: Player 1 Folded.
+2026.02.01 02:56:53 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:56:54 Debug     -  [Seat]: Player 2 Folded.
+2026.02.01 02:56:54 Debug     -  [Table]: Fold to One Condition.
+2026.02.01 02:56:54 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:56:55 Debug     -  [PotManager]: All players folded, player 3 won 130
+2026.02.01 02:56:56 Debug     -  ================================================
+2026.02.01 02:57:01 Debug     -  [Behaviour] Waiting for Properties for VRCPlayer[Remote] 44185932 8
+2026.02.01 02:57:02 Debug     -  UdonManager.OnSceneLoaded took '0.401'
+2026.02.01 02:57:04 Debug     -  [Behaviour] Spent 9.873072s waiting to discover master client.
+2026.02.01 02:57:05 Warning   -  Failed to update discord rich presence
+2026.02.01 02:57:08 Debug     -  [Behaviour] Microphone device changing to 'System Default'
+2026.02.01 02:57:11 Debug     -  [Network] Network stats: sent 17187 bytes/sec, received 34297 bytes/sec
+2026.02.01 02:57:12 Debug     -  UdonManager.OnSceneLoaded took '0.196'
+2026.02.01 02:57:15 Debug     -  [Table]: Preparing for New Game:
+2026.02.01 02:57:17 Debug     -  [Seat]: Player 0 SB BET IN = 5
+2026.02.01 02:57:17 Debug     -  [Seat]: Draw Local Hole Cards: As, 2s
+2026.02.01 02:57:18 Debug     -  [Seat]: Player 1 BB BET IN = 10
+2026.02.01 02:57:19 Debug     -  [Seat]: Player 2 End Turn with BET IN = 10
+2026.02.01 02:57:20 Debug     -  [Seat]: Player 3 End Turn with BET IN = 10
+2026.02.01 02:57:21 Debug     -  [Seat]: Player 4 Folded.
+2026.02.01 02:57:21 Debug     -  [Seat]: Player 4 End Turn with BET IN = 0
+2026.02.01 02:57:22 Debug     -  [Seat]: Player 0 End Turn with BET IN = 10
+2026.02.01 02:57:22 Debug     -  [Seat]: Player 1 End Turn with BET IN = 10
+2026.02.01 02:57:22 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:57:22 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:57:23 Debug     -  [Table]: New Community Card: 4s
+2026.02.01 02:57:23 Debug     -  [Table]: New Community Card: 5d
+2026.02.01 02:57:23 Debug     -  [Table]: New Community Card: 10h
+2026.02.01 02:57:32 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:57:33 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:57:34 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:57:35 Debug     -  [Seat]: Player 3 End Turn with BET IN = 0
+2026.02.01 02:57:35 Debug     -  [Table]: Next phase.True - 4
+2026.02.01 02:57:35 Debug     -  [Table]: Collecting Bets. ----------------
+2026.02.01 02:57:36 Debug     -  [Table]: New Community Card: 2h
+2026.02.01 02:57:52 Debug     -  [Seat]: Player 3 End Turn with BET IN = 25
+2026.02.01 02:57:53 Debug     -  [Table]: New Min Bet: 25 === New Min Raise: 25
+2026.02.01 02:57:54 Debug     -  [Seat]: Player 0 Folded.
+2026.02.01 02:57:54 Debug     -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.01 02:57:55 Debug     -  [Seat]: Player 1 Folded.
+2026.02.01 02:57:55 Debug     -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.01 02:57:56 Debug     -  [Seat]: Player 2 Folded.
+2026.02.01 02:57:56 Debug     -  [Table]: Fold to One Condition.
+2026.02.01 02:57:56 Debug     -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.01 02:57:57 Debug     -  [PotManager]: All players folded, player 3 won 65
+2026.02.01 02:57:58 Debug     -  ================================================
+2026.02.01 02:58:03 Debug      -  [Behaviour] OnLeftRoom
+2026.02.01 02:58:04 Debug      -  [Behaviour] Entering Room: Home
