@@ -6,6 +6,7 @@ func (p *Parser) Clone() *Parser {
 	}
 
 	clone := &Parser{
+		lexer:                 p.lexer,
 		result:                cloneParseResult(p.result),
 		handIDCounter:         p.handIDCounter,
 		inPokerWorld:          p.inPokerWorld,
