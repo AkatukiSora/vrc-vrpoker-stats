@@ -1,0 +1,112 @@
+{
+  "baseline_commit": "426d4d89cb6241b94542b7d5e2f123686d50e576",
+  "service_queries": {
+    "all_hands": [
+      {
+        "uid": "d7cd83ae2d3cce45082297fb755fbd8bcedb20f606a05818bfe018eb88ba20bc",
+        "start_time": "2026-02-21T12:00:00Z"
+      },
+      {
+        "uid": "4ceba3e6aff63c21acc5b0db181cbe3aea4a7b39a04b0adf46cc0819cb8ec35b",
+        "start_time": "2026-02-21T12:10:00Z"
+      },
+      {
+        "uid": "51935a17cfc435394ffdccafb6156ad509c1f453d5ef07f12c587a0edfc967b0",
+        "start_time": "2026-02-21T12:20:00Z"
+      },
+      {
+        "uid": "ed5d2b73866944252a5e6c9d0ac8c2a775974b39be3ee6753482785f2c42ca30",
+        "start_time": "2026-02-21T12:30:00Z"
+      }
+    ],
+    "filtered_summary_count": 3,
+    "filtered_summaries": [
+      {
+        "uid": "ed5d2b73866944252a5e6c9d0ac8c2a775974b39be3ee6753482785f2c42ca30",
+        "start_time": "2026-02-21T12:30:00Z"
+      },
+      {
+        "uid": "51935a17cfc435394ffdccafb6156ad509c1f453d5ef07f12c587a0edfc967b0",
+        "start_time": "2026-02-21T12:20:00Z"
+      }
+    ],
+    "filtered_stats_total": 3,
+    "filtered_last_n_total": 2
+  },
+  "resume": {
+    "old_fully_imported": true,
+    "active_initial_offset": 618,
+    "active_world_context": {
+      "WorldID": "wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8",
+      "WorldDisplayName": "Compat Resume World",
+      "InstanceUID": "wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8:12345~region(us)",
+      "InstanceType": "public",
+      "InstanceOwner": "",
+      "InstanceRegion": "us",
+      "InPokerWorld": true,
+      "WorldDetected": true
+    },
+    "resume_progress_paths": [
+      "compat/active.log"
+    ],
+    "skipped_old_on_resume": true,
+    "resumed_hands": [
+      {
+        "uid": "c5b058ab5256cefe79416b4ef4f97ab7a656aba594e1661122057592501e7c48",
+        "start_time": "2026-02-21T03:00:00Z"
+      },
+      {
+        "uid": "29e050e23855585566912dacf5dbbc1fb8f8dc7d2f58a7d9c2a8b884f3bbfd71",
+        "start_time": "2026-02-21T03:10:00Z",
+        "world_id": "wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8"
+      },
+      {
+        "uid": "bb3d7758cbd884003e2b8abefb8e09c32f6a51ae02418a9ec975996a2b99cec8",
+        "start_time": "2026-02-21T03:20:00Z",
+        "world_id": "wrld_aeba3422-1543-4e6f-bd9d-0f41ddc5c4f8"
+      }
+    ],
+    "repeat_progress_paths": [
+      "compat/active.log"
+    ],
+    "skipped_old_on_repeat": true,
+    "repeated_hand_count": 3,
+    "repeat_stable": true
+  },
+  "contextless_resume": {
+    "initial_hand_count": 1,
+    "non_empty_batch_rows": 1,
+    "hand_count_after_rescan": 1,
+    "prior_cursor_offset": 618,
+    "cursor_world_context_restored": true,
+    "hand_identities_stable": true
+  },
+  "stale_source": {
+    "active_path": "compat/b.log",
+    "before": [
+      {
+        "uid": "b59fa337f98b085ec1d951e8a8b60a3ba3892d9b50aad17040505de9f657f38c",
+        "start_time": "2026-02-21T04:00:00Z"
+      },
+      {
+        "uid": "ea274ea6bd99d920ff0d32f4d8a66803c57977980397ada7aa0000292895661a",
+        "start_time": "2026-02-21T04:10:00Z"
+      }
+    ],
+    "after": [
+      {
+        "uid": "b59fa337f98b085ec1d951e8a8b60a3ba3892d9b50aad17040505de9f657f38c",
+        "start_time": "2026-02-21T04:00:00Z"
+      },
+      {
+        "uid": "ea274ea6bd99d920ff0d32f4d8a66803c57977980397ada7aa0000292895661a",
+        "start_time": "2026-02-21T04:10:00Z"
+      }
+    ],
+    "unchanged": true
+  },
+  "seek_fallback": {
+    "fallback_warning": true,
+    "import_error": "import active file \"compat/nonseekable.log\": seek compat/nonseekable.log: illegal seek"
+  }
+}

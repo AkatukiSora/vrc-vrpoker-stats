@@ -1,0 +1,35 @@
+
+2026.02.21 00:20:00 Debug      -  [Table]: Preparing for New Game: 
+2026.02.21 00:20:01 Debug      -  [Seat]: Player 1 SB BET IN = 10
+2026.02.21 00:20:01 Debug      -  [Seat]: Player 0 BB BET IN = 20
+2026.02.21 00:20:01 Debug      -  [Seat]: Draw Local Hole Cards: Ac, Kh
+2026.02.21 00:20:03 Debug      -  [Seat]: Player 2 End Turn with BET IN = 20
+2026.02.21 00:20:04 Debug      -  [Seat]: Player 0 End Turn with BET IN = 20
+2026.02.21 00:20:04 Debug      -  [Seat]: Player 1 End Turn with BET IN = 20
+2026.02.21 00:20:04 Debug      -  [Table]: Next phase.True - 3
+2026.02.21 00:20:04 Debug      -  [Table]: Collecting Bets. ----------------
+2026.02.21 00:20:05 Debug      -  [Table]: New Community Card: As
+2026.02.21 00:20:05 Debug      -  [Table]: New Community Card: 7h
+2026.02.21 00:20:05 Debug      -  [Table]: New Community Card: 2d
+2026.02.21 00:20:10 Debug      -  [Seat]: Player 0 End Turn with BET IN = 100
+2026.02.21 00:20:11 Debug      -  [Seat]: Player 1 End Turn with BET IN = 100
+2026.02.21 00:20:12 Debug      -  [Seat]: Player 2 End Turn with BET IN = 100
+2026.02.21 00:20:12 Debug      -  [Table]: Next phase.True - 3
+2026.02.21 00:20:13 Debug      -  [Table]: Collecting Bets. ----------------
+2026.02.21 00:20:14 Debug      -  [Table]: New Community Card: 5c
+2026.02.21 00:20:18 Debug      -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.21 00:20:19 Debug      -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.21 00:20:20 Debug      -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.21 00:20:20 Debug      -  [Table]: Next phase.True - 3
+2026.02.21 00:20:21 Debug      -  [Table]: Collecting Bets. ----------------
+2026.02.21 00:20:22 Debug      -  [Table]: New Community Card: 9s
+2026.02.21 00:20:25 Debug      -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.21 00:20:26 Debug      -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.21 00:20:27 Debug      -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.21 00:20:27 Debug      -  [Table]: Collecting Bets. ----------------
+2026.02.21 00:20:28 Debug      -  [Seat]: Player 0 Show hole cards: Ac, Kh
+2026.02.21 00:20:29 Debug      -  [Seat]: Player 1 Show hole cards: 7d, 7c
+2026.02.21 00:20:30 Debug      -  [Seat]: Player 2 Show hole cards: 2h, 2c
+2026.02.21 00:20:31 Debug      -  [Pot]: Deal One Pot
+2026.02.21 00:20:33 Debug      -  [Pot]: Winner: 0 Pot Amount: 360
+2026.02.21 00:20:40 Debug      -  [Table]: Preparing for New Game: 

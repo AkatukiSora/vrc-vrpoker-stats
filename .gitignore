@@ -30,6 +30,7 @@ coverage.html
 
 # VRC Logfiles
 output_*
+!testdata/compat/**
 
 # DB file
 vrpoker-stats.db

@@ -1,0 +1,37 @@
+
+2026.02.21 00:18:53 Debug      -  [Table]: Preparing for New Game: 
+2026.02.21 00:18:55 Debug      -  [Seat]: Player 0 SB BET IN = 10
+2026.02.21 00:18:55 Debug      -  [Seat]: Draw Local Hole Cards: 7d, 9c
+2026.02.21 00:18:56 Debug      -  [Seat]: Player 1 BB BET IN = 20
+2026.02.21 00:18:57 Debug      -  [Seat]: Player 2 End Turn with BET IN = 20
+2026.02.21 00:18:58 Debug      -  [Seat]: Player 3 End Turn with BET IN = 20
+2026.02.21 00:18:59 Debug      -  [Seat]: Player 4 Folded.
+2026.02.21 00:18:59 Debug      -  [Seat]: Player 4 End Turn with BET IN = 0
+2026.02.21 00:19:00 Debug      -  [Seat]: Player 0 End Turn with BET IN = 20
+2026.02.21 00:19:00 Debug      -  [Seat]: Player 1 End Turn with BET IN = 20
+2026.02.21 00:19:00 Debug      -  [Table]: Next phase.True - 4
+2026.02.21 00:19:00 Debug      -  [Table]: Collecting Bets. ----------------
+2026.02.21 00:19:01 Debug      -  [Table]: New Community Card: Qd
+2026.02.21 00:19:01 Debug      -  [Table]: New Community Card: 3s
+2026.02.21 00:19:01 Debug      -  [Table]: New Community Card: Kd
+2026.02.21 00:19:10 Debug      -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.21 00:19:11 Debug      -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.21 00:19:12 Debug      -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.21 00:19:13 Debug      -  [Seat]: Player 3 End Turn with BET IN = 0
+2026.02.21 00:19:13 Debug      -  [Table]: Next phase.True - 4
+2026.02.21 00:19:13 Debug      -  [Table]: Collecting Bets. ----------------
+2026.02.21 00:19:14 Debug      -  [Table]: New Community Card: 8c
+2026.02.21 00:19:30 Debug      -  [Seat]: Player 3 End Turn with BET IN = 50
+2026.02.21 00:19:31 Debug      -  [Table]: New Min Bet: 50 === New Min Raise: 50
+2026.02.21 00:19:32 Debug      -  [Seat]: Player 0 Folded.
+2026.02.21 00:19:32 Debug      -  [Seat]: Player 0 End Turn with BET IN = 0
+2026.02.21 00:19:33 Debug      -  [Seat]: Player 1 Folded.
+2026.02.21 00:19:33 Debug      -  [Seat]: Player 1 End Turn with BET IN = 0
+2026.02.21 00:19:34 Debug      -  [Seat]: Player 2 Folded.
+2026.02.21 00:19:34 Debug      -  [Table]: Fold to One Condition.
+2026.02.21 00:19:34 Debug      -  [Table]: Collecting Bets. ----------------
+2026.02.21 00:19:34 Debug      -  [Seat]: Player 2 End Turn with BET IN = 0
+2026.02.21 00:19:34 Debug      -  [Table]: Detected On Turn Passed, already processing result.
+2026.02.21 00:19:35 Debug      -  [PotManager]: All players folded, player 3 won 130
+2026.02.21 00:19:36 Debug      -  ================================================
+2026.02.21 00:19:37 Debug      -  [Table]: Preparing for New Game: 
