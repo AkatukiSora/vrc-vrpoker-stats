@@ -4,53 +4,15 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
+
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/logevent"
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/logformat"
 )
-
-var (
-	reTimestamp = regexp.MustCompile(`^(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}) \w+\s+-\s+(.+)$`)
-
-	reWorldJoining   = regexp.MustCompile(`(?:\[Behaviour\] Joining|Joining friend:) (wrld_[a-f0-9-]+:[^\s]+|wrld_[a-f0-9-]+)`)
-	reDestination    = regexp.MustCompile(`\[Behaviour\] Destination (?:requested|fetching|set): (wrld_[a-f0-9-]+:[^\s]+|wrld_[a-f0-9-]+)`)
-	reEnteringRoom   = regexp.MustCompile(`\[Behaviour\] Entering Room: (.+)`)
-	reOnPlayerJoined = regexp.MustCompile(`\[Behaviour\] OnPlayerJoined (.+?) \((usr_[a-f0-9-]+)\)`)
-	reWorldLeaving   = regexp.MustCompile(`\[Behaviour\] OnLeftRoom`)
-
-	reNewGame        = regexp.MustCompile(`\[Table\]: Preparing for New Game`)
-	reNewCommunity   = regexp.MustCompile(`\[Table\]: New Community Card: (.+)`)
-	reFoldToOne      = regexp.MustCompile(`\[Table\]: Fold to One Condition`)
-	reNextPhase      = regexp.MustCompile(`\[Table\]: Next phase\.True - (\d+)`)
-	reCollectingBets = regexp.MustCompile(`\[Table\]: Collecting Bets`)
-	reNewMinBet      = regexp.MustCompile(`\[Table\]: New Min Bet: (\d+)`)
-
-	reDrawLocalHole = regexp.MustCompile(`\[Seat\]: Draw Local Hole Cards: (.+)`)
-	reSBBet         = regexp.MustCompile(`\[Seat\]: Player (\d+) SB BET IN = (\d+)`)
-	reBBBet         = regexp.MustCompile(`\[Seat\]: Player (\d+) BB BET IN = (\d+)`)
-	rePlayerFolded  = regexp.MustCompile(`\[Seat\]: Player (\d+) Folded\.`)
-	rePlayerEndTurn = regexp.MustCompile(`\[Seat\]: Player (\d+) End Turn with BET IN = (\d+)`)
-	reShowHoleCards = regexp.MustCompile(`\[Seat\]: Player (\d+) Show hole cards: (.+)`)
-	reLocalSeatID   = regexp.MustCompile(`\[Manager\]: Local Seat Assigned\. ID: (\d+)`)
-
-	rePotWinner  = regexp.MustCompile(`\[Pot\]: Winner: (\d+) Pot Amount: (\d+)`)
-	rePotManager = regexp.MustCompile(`\[PotManager\]: All players folded, player (\d+) won (\d+)`)
-)
-
-// validCardSuits and validCardRanks are package-level constants used by
-// parseCard to avoid allocating a new map on every card parse call.
-var validCardSuits = map[string]bool{"h": true, "d": true, "c": true, "s": true}
-var validCardRanks = map[string]bool{
-	"2": true, "3": true, "4": true, "5": true, "6": true,
-	"7": true, "8": true, "9": true, "10": true,
-	"J": true, "Q": true, "K": true, "A": true,
-}
-
-const timeLayout = "2006.01.02 15:04:05"
 
 // Parser holds state for incremental log parsing
 type Parser struct {
+	lexer         logformat.Lexer
 	result        ParseResult
 	currentHand   *Hand
 	handIDCounter int
@@ -93,7 +55,15 @@ type pfAction struct {
 }
 
 func NewParser() *Parser {
+	return NewParserWithLexer(nil)
+}
+
+func NewParserWithLexer(lexer logformat.Lexer) *Parser {
+	if lexer == nil {
+		lexer = logformat.LegacyLexer{}
+	}
 	return &Parser{
+		lexer:                lexer,
 		result:               ParseResult{LocalPlayerSeat: -1},
 		foldedThisHand:       make(map[int]bool),
 		streetBets:           make(map[int]int),
@@ -104,301 +74,12 @@ func NewParser() *Parser {
 	}
 }
 
-func (p *Parser) ParseLine(line string) error {
-	m := reTimestamp.FindStringSubmatch(line)
-	if m == nil {
-		return nil
-	}
-	ts, err := time.Parse(timeLayout, m[1])
-	if err != nil {
-		return nil
-	}
-	p.lastTimestamp = ts
-	msg := strings.TrimSpace(m[2])
-
-	if dm := reDestination.FindStringSubmatch(msg); dm != nil {
-		p.setLocation(dm[1])
-		return nil
-	}
-
-	if em := reEnteringRoom.FindStringSubmatch(msg); em != nil {
-		p.currentWorldName = strings.TrimSpace(em[1])
-		return nil
-	}
-
-	if pm := reOnPlayerJoined.FindStringSubmatch(msg); pm != nil {
-		uid := pm[2]
-		name := strings.TrimSpace(pm[1])
-		if uid != "" {
-			p.currentInstanceUsers[uid] = name
-		}
-		return nil
-	}
-
-	// World detection
-	if wm := reWorldJoining.FindStringSubmatch(msg); wm != nil {
-		p.setLocation(wm[1])
-		p.worldDetected = true
-		p.inPokerWorld = (p.currentWorldID == VRPokerWorldID)
-		p.result.InPokerWorld = p.inPokerWorld
-		return nil
-	}
-	if reWorldLeaving.MatchString(msg) {
-		p.worldDetected = true
-		if p.inPokerWorld {
-			p.finalizeCurrentHand()
-		}
-		p.inPokerWorld = false
-		p.currentWorldID = ""
-		p.currentWorldName = ""
-		p.currentInstanceUID = ""
-		p.currentInstanceType = InstanceTypeUnknown
-		p.currentInstanceOwner = ""
-		p.currentInstanceRegion = ""
-		p.currentInstanceUsers = make(map[string]string)
-		p.result.InPokerWorld = false
-		p.result.LocalPlayerSeat = -1
-		return nil
-	}
-
-	if p.worldDetected && !p.inPokerWorld {
-		return nil
-	}
-
-	return p.processPokerEvent(ts, msg)
+func (p *Parser) DecodeLine(line string) logevent.Record {
+	return p.lexer.Decode(line)
 }
 
-func (p *Parser) processPokerEvent(ts time.Time, msg string) error {
-	// === New game ===
-	if reNewGame.MatchString(msg) {
-		p.finalizeCurrentHand()
-		p.startNewHand(ts)
-		return nil
-	}
-
-	if m := reLocalSeatID.FindStringSubmatch(msg); m != nil {
-		seat, _ := strconv.Atoi(m[1])
-		p.result.LocalPlayerSeat = seat
-		if p.currentHand != nil {
-			p.currentHand.LocalPlayerSeat = seat
-			if p.pendingLocalCards != nil {
-				p.assignLocalCards(seat, p.pendingLocalCards, true)
-			}
-		}
-		return nil
-	}
-
-	if p.currentHand == nil {
-		return nil
-	}
-
-	// === Draw local hole cards ===
-	if m := reDrawLocalHole.FindStringSubmatch(msg); m != nil {
-		cards, err := parseCards(m[1])
-		if err != nil || len(cards) != 2 {
-			return nil
-		}
-		p.pendingLocalCards = cards
-		p.pendingLocalSeat = -1
-
-		localSeat := p.result.LocalPlayerSeat
-		if p.lastBlindSeat >= 0 {
-			// Tentative: last blind poster is likely us
-			// Will be corrected by Local Seat Assigned / Show hole cards.
-			p.assignLocalCards(p.lastBlindSeat, cards, false)
-		} else if localSeat >= 0 {
-			p.assignLocalCards(localSeat, cards, false)
-		}
-		// If no blind seen yet, will be resolved at Show hole cards
-		return nil
-	}
-
-	// === SB blind ===
-	if m := reSBBet.FindStringSubmatch(msg); m != nil {
-		seat, _ := strconv.Atoi(m[1])
-		amount, _ := strconv.Atoi(m[2])
-		p.currentHand.SBSeat = seat
-		p.lastBlindSeat = seat
-		p.ensurePlayer(seat)
-		pi := p.currentHand.Players[seat]
-		pi.Actions = append(pi.Actions, PlayerAction{
-			Timestamp: ts, PlayerID: seat,
-			Street: StreetPreFlop, Action: ActionBlindSB, Amount: amount,
-		})
-		p.streetBets[seat] = amount
-		if amount > p.streetBetAmount {
-			p.streetBetAmount = amount
-		}
-		p.pfActions = append(p.pfActions, pfAction{seat, ActionBlindSB, amount})
-		return nil
-	}
-
-	// === BB blind ===
-	if m := reBBBet.FindStringSubmatch(msg); m != nil {
-		seat, _ := strconv.Atoi(m[1])
-		amount, _ := strconv.Atoi(m[2])
-		p.currentHand.BBSeat = seat
-		p.lastBlindSeat = seat
-		p.ensurePlayer(seat)
-		pi := p.currentHand.Players[seat]
-		pi.Actions = append(pi.Actions, PlayerAction{
-			Timestamp: ts, PlayerID: seat,
-			Street: StreetPreFlop, Action: ActionBlindBB, Amount: amount,
-		})
-		p.streetBets[seat] = amount
-		if amount > p.streetBetAmount {
-			p.streetBetAmount = amount
-		}
-		p.pfActions = append(p.pfActions, pfAction{seat, ActionBlindBB, amount})
-		return nil
-	}
-
-	// === New Min Bet (raise announced) ===
-	// This reliably tells us the current bet level in the street
-	if m := reNewMinBet.FindStringSubmatch(msg); m != nil {
-		amount, _ := strconv.Atoi(m[1])
-		if amount > p.streetBetAmount {
-			p.streetBetAmount = amount
-		}
-		return nil
-	}
-
-	// === Community card ===
-	if m := reNewCommunity.FindStringSubmatch(msg); m != nil {
-		card, err := parseCard(strings.TrimSpace(m[1]))
-		if err != nil {
-			p.currentHand.addAnomaly("BOARD_PARSE_ERROR", "warn", fmt.Sprintf("invalid board token: %s", strings.TrimSpace(m[1])))
-			return nil
-		}
-		if len(p.currentHand.CommunityCards) >= 5 {
-			p.currentHand.addAnomaly("BOARD_OVERFLOW", "warn", "board card count exceeded 5")
-			return nil
-		}
-		for _, existing := range p.currentHand.CommunityCards {
-			if existing.Rank == card.Rank && existing.Suit == card.Suit {
-				p.currentHand.addAnomaly("BOARD_DUPLICATE_CARD", "warn", card.String())
-				return nil
-			}
-		}
-		p.currentHand.CommunityCards = append(p.currentHand.CommunityCards, card)
-		switch len(p.currentHand.CommunityCards) {
-		case 1, 2, 3:
-			if p.currentStreet < StreetFlop {
-				p.currentStreet = StreetFlop
-			}
-		case 4:
-			p.currentStreet = StreetTurn
-		case 5:
-			p.currentStreet = StreetRiver
-		}
-		return nil
-	}
-
-	// === Street boundary: Next phase / Collecting bets ===
-	if reNextPhase.MatchString(msg) || reCollectingBets.MatchString(msg) {
-		p.streetBets = make(map[int]int)
-		p.streetBetAmount = 0
-		return nil
-	}
-
-	// === Player folded ===
-	if m := rePlayerFolded.FindStringSubmatch(msg); m != nil {
-		seat, _ := strconv.Atoi(m[1])
-		p.foldedThisHand[seat] = true
-		p.ensurePlayer(seat)
-		pi := p.currentHand.Players[seat]
-		pi.Actions = append(pi.Actions, PlayerAction{
-			Timestamp: ts, PlayerID: seat,
-			Street: p.currentStreet, Action: ActionFold, Amount: 0,
-		})
-		if p.currentStreet == StreetPreFlop {
-			pi.FoldedPF = true
-			p.pfActions = append(p.pfActions, pfAction{seat, ActionFold, 0})
-		}
-		return nil
-	}
-
-	// === Player End Turn ===
-	if m := rePlayerEndTurn.FindStringSubmatch(msg); m != nil {
-		seat, _ := strconv.Atoi(m[1])
-		amount, _ := strconv.Atoi(m[2])
-
-		// Skip redundant End Turn after Fold
-		if p.foldedThisHand[seat] {
-			return nil
-		}
-
-		p.ensurePlayer(seat)
-		action := p.classifyAction(seat, amount)
-
-		pi := p.currentHand.Players[seat]
-		pi.Actions = append(pi.Actions, PlayerAction{
-			Timestamp: ts, PlayerID: seat,
-			Street: p.currentStreet, Action: action, Amount: amount,
-		})
-
-		p.streetBets[seat] = amount
-		if amount > p.streetBetAmount {
-			p.streetBetAmount = amount
-		}
-
-		if p.currentStreet == StreetPreFlop {
-			p.pfActions = append(p.pfActions, pfAction{seat, action, amount})
-		}
-		return nil
-	}
-
-	// === Show hole cards ===
-	if m := reShowHoleCards.FindStringSubmatch(msg); m != nil {
-		seat, _ := strconv.Atoi(m[1])
-		cards, err := parseCards(m[2])
-		if err != nil || len(cards) != 2 {
-			return nil
-		}
-		p.ensurePlayer(seat)
-		pi := p.currentHand.Players[seat]
-		pi.ShowedDown = true
-		p.currentStreet = StreetShowdown
-
-		// If the shown cards match our pending local cards → confirm seat
-		if p.pendingLocalCards != nil && cardsMatch(p.pendingLocalCards, cards) {
-			if p.result.LocalPlayerSeat < 0 {
-				p.result.LocalPlayerSeat = seat
-			}
-			p.assignLocalCards(seat, cards, true)
-		} else if len(pi.HoleCards) == 0 {
-			pi.HoleCards = cards
-		}
-		return nil
-	}
-
-	// === Fold to one ===
-	if reFoldToOne.MatchString(msg) {
-		p.currentStreet = StreetShowdown
-		return nil
-	}
-
-	// === Pot winner (showdown) ===
-	if m := rePotWinner.FindStringSubmatch(msg); m != nil {
-		seat, _ := strconv.Atoi(m[1])
-		amount, _ := strconv.Atoi(m[2])
-		p.pendingWinners = append(p.pendingWinners, pendingWin{seat, amount})
-		if p.currentHand.WinType == "" {
-			p.currentHand.WinType = "showdown"
-		}
-		return nil
-	}
-
-	// === PotManager (fold win) ===
-	if m := rePotManager.FindStringSubmatch(msg); m != nil {
-		seat, _ := strconv.Atoi(m[1])
-		amount, _ := strconv.Atoi(m[2])
-		p.pendingWinners = append(p.pendingWinners, pendingWin{seat, amount})
-		p.currentHand.WinType = "fold"
-		return nil
-	}
-
-	return nil
+func (p *Parser) ParseLine(line string) error {
+	return p.ParseRecord(p.DecodeLine(line))
 }
 
 func (p *Parser) assignLocalCards(seat int, cards []Card, confirmed bool) {
@@ -596,38 +277,33 @@ func ParseReader(r io.Reader) (*ParseResult, error) {
 }
 
 func parseCards(s string) ([]Card, error) {
-	parts := strings.Split(s, ",")
-	cards := make([]Card, 0, len(parts))
-	for _, part := range parts {
-		card, err := parseCard(strings.TrimSpace(part))
-		if err != nil {
-			return nil, err
-		}
-		cards = append(cards, card)
+	parsed, err := logformat.ParseCards(s)
+	if err != nil {
+		return nil, err
+	}
+	cards := make([]Card, len(parsed))
+	for i, card := range parsed {
+		cards[i] = cardFromLogEvent(card)
 	}
 	return cards, nil
 }
 
 func parseCard(s string) (Card, error) {
-	s = strings.TrimSpace(s)
-	if len(s) < 2 {
-		return Card{}, fmt.Errorf("invalid card token: %q", s)
+	card, err := logformat.ParseCard(s)
+	if err != nil {
+		return Card{}, err
 	}
-	suit := string(s[len(s)-1])
-	rank := s[:len(s)-1]
-
-	if !validCardSuits[suit] || !validCardRanks[rank] {
-		return Card{}, fmt.Errorf("invalid card token: %q", s)
-	}
-	return Card{Rank: rank, Suit: suit}, nil
+	return cardFromLogEvent(card), nil
 }
 
 func (p *Parser) GetLocalSeat() int { return p.result.LocalPlayerSeat }
 
-// IsNewHandLine reports whether line is the log line that begins a new poker
+// IsNewHandLine reports whether line is the log line that begins a poker
 // hand. Callers that need to track hand-start byte offsets can use this instead
 // of duplicating the regex.
-func IsNewHandLine(line string) bool { return reNewGame.MatchString(line) }
+func IsNewHandLine(line string) bool {
+	return logformat.LegacyLexer{}.Decode(line).HandStartHint
+}
 
 // HandCount returns the number of completed hands without allocating a slice.
 // Use this for cheap change-detection before calling GetHands.
@@ -661,76 +337,6 @@ func validBoardCount(n int) bool {
 	default:
 		return false
 	}
-}
-
-func (p *Parser) setLocation(location string) {
-	location = strings.TrimSpace(location)
-	if location == "" {
-		return
-	}
-	base := location
-	tagsPart := ""
-	if idx := strings.Index(location, "~"); idx >= 0 {
-		base = location[:idx]
-		tagsPart = location[idx+1:]
-	}
-	parts := strings.SplitN(base, ":", 2)
-	worldID := parts[0]
-	if worldID == "" {
-		return
-	}
-	p.currentWorldID = worldID
-	p.currentInstanceUID = location
-
-	tags := parseLocationTags(tagsPart)
-	p.currentInstanceRegion = tags["region"]
-	p.currentInstanceOwner = ""
-	switch {
-	case tags["friends"] != "":
-		p.currentInstanceType = InstanceTypeFriends
-		p.currentInstanceOwner = tags["friends"]
-	case tags["hidden"] != "":
-		p.currentInstanceType = InstanceTypeFriendsPlus
-		p.currentInstanceOwner = tags["hidden"]
-	case tags["private"] != "" && tags["canRequestInvite"] != "":
-		p.currentInstanceType = InstanceTypeInvitePlus
-		p.currentInstanceOwner = tags["private"]
-	case tags["private"] != "":
-		p.currentInstanceType = InstanceTypeInvite
-		p.currentInstanceOwner = tags["private"]
-	case tags["group"] != "":
-		switch strings.ToLower(tags["groupAccessType"]) {
-		case "plus":
-			p.currentInstanceType = InstanceTypeGroupPlus
-		case "public":
-			p.currentInstanceType = InstanceTypeGroupPublic
-		default:
-			p.currentInstanceType = InstanceTypeGroup
-		}
-	default:
-		p.currentInstanceType = InstanceTypePublic
-	}
-}
-
-func parseLocationTags(tagsPart string) map[string]string {
-	out := make(map[string]string)
-	if tagsPart == "" {
-		return out
-	}
-	for _, token := range strings.Split(tagsPart, "~") {
-		token = strings.TrimSpace(token)
-		if token == "" {
-			continue
-		}
-		if open := strings.Index(token, "("); open >= 0 && strings.HasSuffix(token, ")") {
-			key := token[:open]
-			val := token[open+1 : len(token)-1]
-			out[key] = val
-			continue
-		}
-		out[token] = "1"
-	}
-	return out
 }
 
 // calculateInvestedAmount calculates the total amount a player invested in a hand
