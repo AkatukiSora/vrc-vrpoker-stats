@@ -1,16 +1,14 @@
 package application
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
-	"os"
 	"runtime"
 	"sync"
 	"time"
 
+	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/logsource"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/parser"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/persistence"
 	"github.com/AkatukiSora/vrc-vrpoker-ststs/internal/stats"
@@ -43,6 +41,7 @@ type Service struct {
 	logPath        string
 	localSeat      int
 	detectLogFiles LogFileLocator
+	source         logsource.Source
 
 	parsedHands          int
 	currentLineNumber    int64
@@ -81,6 +80,7 @@ func NewService(repo persistence.ImportRepository, locator LogFileLocator) *Serv
 		localSeat:          -1,
 		currentHandStartLn: 0,
 		detectLogFiles:     locator,
+		source:             logsource.FileSource{},
 	}
 }
 
@@ -94,6 +94,14 @@ type BootstrapProgress struct {
 	Path string
 	// Skipped is the number of files skipped (already fully imported).
 	Skipped int
+}
+
+// lineSource returns the configured log source, defaulting to the file system.
+func (s *Service) lineSource() logsource.Source {
+	if s.source == nil {
+		return logsource.FileSource{}
+	}
+	return s.source
 }
 
 func (s *Service) BootstrapImportAllLogs(ctx context.Context) (string, error) {
@@ -114,59 +122,42 @@ type parseResult struct {
 }
 
 // parseWorker parses a single log file and sends the result on out.
-// It does not touch the database.
+// It is a compatibility wrapper over parseWorkerWithSource using the file system.
 func parseWorker(ctx context.Context, path string, out chan<- parseResult) {
+	parseWorkerWithSource(ctx, path, logsource.FileSource{}, out)
+}
+
+// parseWorkerWithSource parses a single log file read through source and sends
+// the result on out. It does not touch the database.
+func parseWorkerWithSource(ctx context.Context, path string, source logsource.Source, out chan<- parseResult) {
 	result := parseResult{path: path}
 
-	f, err := os.Open(path)
+	stream, err := source.Open(ctx, path, 0)
 	if err != nil {
 		result.err = err
 		out <- result
 		return
 	}
-	defer f.Close()
+	defer stream.Close()
 
 	p := parser.NewParser()
-	lineNo := int64(0)
-	handStartLn := int64(0)
-	byteOffset := int64(0)
-	handStartByte := int64(0)
-	parsedHands := 0
-
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 4*1024*1024)
-	for scanner.Scan() {
-		if ctx.Err() != nil {
-			result.err = ctx.Err()
-			out <- result
-			return
-		}
-		line := scanner.Text()
-		lineStartByte := byteOffset
-		lineNo++
-		byteOffset += int64(len(line)) + 1
-
-		markHandStart(line, lineNo, lineStartByte, &handStartLn, &handStartByte)
-
-		_ = p.ParseLine(line)
-		if p.HandCount() > parsedHands {
-			hands := p.GetHands()
-			newRows := collectNewPersistedHands(path, hands, &parsedHands, lineNo, &handStartLn, &handStartByte, lineStartByte, byteOffset)
-			result.hands = append(result.hands, newRows...)
-		}
-	}
-	if err := scanner.Err(); err != nil {
+	sess := newImportSession(path, p, 0, 0, 0, 0)
+	err = logsource.Consume(ctx, stream, func(line logsource.Line) error {
+		result.hands = append(result.hands, sess.feed(line)...)
+		return nil
+	})
+	if err != nil {
 		result.err = err
 		out <- result
 		return
 	}
 
 	result.parser = p
-	result.byteOffset = byteOffset
-	result.lineNumber = lineNo
-	result.handStartLn = handStartLn
-	result.handStartByte = handStartByte
-	result.parsedHands = parsedHands
+	result.byteOffset = sess.byteOffset
+	result.lineNumber = sess.lineNo
+	result.handStartLn = sess.handStartLn
+	result.handStartByte = sess.handStartByte
+	result.parsedHands = sess.parsedHands
 	out <- result
 }
 
@@ -244,7 +235,7 @@ func (s *Service) BootstrapImportAllLogsWithProgress(ctx context.Context, onProg
 					if ctx.Err() != nil {
 						return
 					}
-					parseWorker(ctx, path, resultCh)
+					parseWorkerWithSource(ctx, path, s.lineSource(), resultCh)
 				}
 			}()
 		}
@@ -359,75 +350,56 @@ func (s *Service) importFile(ctx context.Context, path string, activate bool) er
 // and parsing begins at cursor.NextByteOffset (skipping already-processed bytes).
 func (s *Service) importFileFrom(ctx context.Context, path string, activate bool, cursor *persistence.ImportCursor) error {
 	slog.Debug("importing file", "path", path, "activate", activate)
-	f, err := os.Open(path)
+
+	// Determine start offset: resume from cursor when possible.
+	requested := int64(0)
+	if cursor != nil && cursor.WorldCtx != nil && cursor.NextByteOffset > 0 {
+		requested = cursor.NextByteOffset
+	}
+	stream, err := s.lineSource().Open(ctx, path, requested)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer stream.Close()
 
-	// Determine start offset: resume from cursor when possible.
-	startByte := int64(0)
+	startByte := stream.StartOffset()
 	p := parser.NewParser()
-	if cursor != nil && cursor.WorldCtx != nil && cursor.NextByteOffset > 0 {
-		startByte = cursor.NextByteOffset
-		p = restoreParserFromCursor(cursor)
-		slog.Debug("resuming file parse from offset", "path", path, "offset", startByte)
-		if _, err := f.Seek(startByte, io.SeekStart); err != nil {
-			// On seek failure, fall back to scanning from beginning.
-			slog.Warn("seek failed, re-scanning from start", "path", path, "error", err)
-			startByte = 0
-			p = parser.NewParser()
-			if _, err2 := f.Seek(0, io.SeekStart); err2 != nil {
-				return err2
-			}
+	if requested > 0 {
+		if startByte == requested {
+			p = restoreParserFromCursor(cursor)
+			slog.Debug("resuming file parse from offset", "path", path, "offset", startByte)
 		}
 	}
 
-	lineNo := int64(0)
-	handStartLn := int64(0)
-	byteOffset := startByte
-	handStartByte := startByte
-	parsedHands := p.HandCount() // already-restored hands don't count as new
+	sess := newImportSession(path, p, 0, 0, startByte, startByte)
 	var earliestNewStart time.Time
 	hasNewStart := false
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 4*1024*1024)
-	for scanner.Scan() {
-		if err := ctx.Err(); err != nil {
-			return err
+	err = logsource.Consume(ctx, stream, func(line logsource.Line) error {
+		newRows := sess.feed(line)
+		if len(newRows) == 0 {
+			return nil
 		}
-
-		line := scanner.Text()
-		lineStartByte := byteOffset
-		lineNo++
-		byteOffset += int64(len(line)) + 1
-
-		markHandStart(line, lineNo, lineStartByte, &handStartLn, &handStartByte)
-
-		_ = p.ParseLine(line)
-		if p.HandCount() > parsedHands {
-			hands := p.GetHands()
-			newRows := collectNewPersistedHands(path, hands, &parsedHands, lineNo, &handStartLn, &handStartByte, lineStartByte, byteOffset)
-			for _, row := range newRows {
-				if row.Hand == nil || row.Hand.StartTime.IsZero() {
-					continue
-				}
-				if !hasNewStart || row.Hand.StartTime.Before(earliestNewStart) {
-					earliestNewStart = row.Hand.StartTime
-					hasNewStart = true
-				}
+		for _, row := range newRows {
+			if row.Hand == nil || row.Hand.StartTime.IsZero() {
+				continue
 			}
-			cursor := buildImportCursorWithContext(path, byteOffset, lineNo, p)
-			if err := s.saveImportBatch(ctx, newRows, cursor); err != nil {
-				return fmt.Errorf("save imported hands: %w", err)
+			if !hasNewStart || row.Hand.StartTime.Before(earliestNewStart) {
+				earliestNewStart = row.Hand.StartTime
+				hasNewStart = true
 			}
 		}
-	}
-	if err := scanner.Err(); err != nil {
+		cur := buildImportCursorWithContext(path, sess.byteOffset, sess.lineNo, p)
+		if err := s.saveImportBatch(ctx, newRows, cur); err != nil {
+			return fmt.Errorf("save imported hands: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 
+	byteOffset, lineNo := sess.byteOffset, sess.lineNo
 	if err := s.saveImportBatch(ctx, nil, buildImportCursorWithContext(path, byteOffset, lineNo, p)); err != nil {
 		return err
 	}
@@ -442,15 +414,15 @@ func (s *Service) importFileFrom(ctx context.Context, path string, activate bool
 		s.parser = p
 		s.logPath = path
 		s.localSeat = p.GetLocalSeat()
-		s.parsedHands = parsedHands
+		s.parsedHands = sess.parsedHands
 		s.currentLineNumber = lineNo
-		s.currentHandStartLn = maxInt64(handStartLn, 1)
+		s.currentHandStartLn = maxInt64(sess.handStartLn, 1)
 		s.currentByteOffset = byteOffset
-		s.currentHandStartByte = maxInt64(handStartByte, 0)
+		s.currentHandStartByte = maxInt64(sess.handStartByte, 0)
 		s.mu.Unlock()
 	}
 
-	slog.Debug("file import complete", "path", path, "hands", parsedHands)
+	slog.Debug("file import complete", "path", path, "hands", sess.parsedHands)
 	return nil
 }
 
@@ -483,34 +455,19 @@ func (s *Service) ImportLines(ctx context.Context, sourcePath string, lines []st
 		}
 	}
 
+	sess := newImportSession(sourcePath, workingParser, lineNo, handStartLn, handStartByte, byteOffset)
+	sess.parsedHands = parsedHands
 	newRows := make([]persistence.PersistedHand, 0)
-	for i, line := range lines {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		lineStartByte := byteOffset
-		lineNo++
-		lineEndByte := lineStartByte + int64(len(line))
-		if i < len(lines)-1 {
-			lineEndByte++
-		} else if endOffset > lineEndByte {
-			lineEndByte = endOffset
-		}
-		byteOffset = lineEndByte
-
-		markHandStart(line, lineNo, lineStartByte, &handStartLn, &handStartByte)
-
-		_ = workingParser.ParseLine(line)
-		if workingParser.HandCount() > parsedHands {
-			hands := workingParser.GetHands()
-			newRows = append(newRows, collectNewPersistedHands(sourcePath, hands, &parsedHands, lineNo, &handStartLn, &handStartByte, lineStartByte, lineEndByte)...)
-		}
+	byteOffset, lineNo, err := logsource.ConsumeBatch(ctx, lines, byteOffset, endOffset, lineNo, func(line logsource.Line) error {
+		newRows = append(newRows, sess.feed(line)...)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-
-	if endOffset > byteOffset {
-		byteOffset = endOffset
-	}
+	parsedHands = sess.parsedHands
+	handStartLn = sess.handStartLn
+	handStartByte = sess.handStartByte
 
 	cursor := buildImportCursorWithContext(sourcePath, byteOffset, lineNo, workingParser)
 	if err := s.saveImportBatch(ctx, newRows, cursor); err != nil {
@@ -755,13 +712,6 @@ func maxInt64(a, b int64) int64 {
 		return a
 	}
 	return b
-}
-
-func markHandStart(line string, lineNo, lineStartByte int64, handStartLn, handStartByte *int64) {
-	if parser.IsNewHandLine(line) && *handStartLn <= 0 {
-		*handStartLn = lineNo
-		*handStartByte = lineStartByte
-	}
 }
 
 func collectNewPersistedHands(sourcePath string, hands []*parser.Hand, parsedHands *int, lineNo int64, handStartLn, handStartByte *int64, lineStartByte, lineEndByte int64) []persistence.PersistedHand {

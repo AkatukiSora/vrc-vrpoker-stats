@@ -67,14 +67,14 @@ jobs:
           fi
           (cd testdata/compat && sha256sum --check SHA256SUMS)
 
-      - name: Vet (parser/application/persistence/stats/watcher/compat/logevent/logformat)
-        run: go vet ./internal/parser/... ./internal/application/... ./internal/persistence/... ./internal/stats/... ./internal/watcher/... ./internal/compat/... ./internal/logevent/... ./internal/logformat/...
+      - name: Vet (parser/application/persistence/stats/watcher/compat/logevent/logformat/logsource)
+        run: go vet ./internal/parser/... ./internal/application/... ./internal/persistence/... ./internal/stats/... ./internal/watcher/... ./internal/compat/... ./internal/logevent/... ./internal/logformat/... ./internal/logsource/...
 
-      - name: Unit tests (parser/application/persistence/stats/watcher/compat/logevent/logformat)
-        run: go test -v ./internal/parser/... ./internal/application/... ./internal/persistence/... ./internal/stats/... ./internal/watcher/... ./internal/compat/... ./internal/logevent/... ./internal/logformat/...
+      - name: Unit tests (parser/application/persistence/stats/watcher/compat/logevent/logformat/logsource)
+        run: go test -v ./internal/parser/... ./internal/application/... ./internal/persistence/... ./internal/stats/... ./internal/watcher/... ./internal/compat/... ./internal/logevent/... ./internal/logformat/... ./internal/logsource/...
 
-      - name: Race tests (application/persistence/compat/logevent/logformat)
-        run: go test -race ./internal/application/... ./internal/persistence/... ./internal/compat/... ./internal/logevent/... ./internal/logformat/...
+      - name: Race tests (application/persistence/compat/logevent/logformat/logsource)
+        run: go test -race ./internal/application/... ./internal/persistence/... ./internal/compat/... ./internal/logevent/... ./internal/logformat/... ./internal/logsource/...
 
       # Save Go modules cache after verify succeeds
       - name: Save Go modules
